@@ -12,6 +12,7 @@ services/    同步、统计、校时
 ble/         扫描、连接、Notify、ACK
 database/    SQLite 数据库
 models/      记录和设备状态
+assistant/   AI 对话页面、Provider 和用药上下文
 ```
 
 BLE 层只依赖 `protocol/` 中规定的接口，不要让页面直接调用 BLE 插件。
@@ -28,6 +29,17 @@ flutter run
 ```
 
 Android 需要配置 BLE 权限。第一版只实现用户打开 App 后主动扫描、连接和同步，不实现全天后台扫描。
+
+## 第一阶段 AI 助手
+
+当前已加入本地文字助手框架：
+
+- `assistant_page.dart`：对话页面和快捷提问；
+- `assistant_service.dart`：统一业务入口；
+- `MockAssistantProvider`：不联网、不需要 API Key 的演示实现；
+- `AssistantContext`：向未来 AI 网关传递用药统计摘要。
+
+第一阶段默认使用 Mock 模式。后续接入真实服务时，只增加新的 `AssistantProvider`，不修改页面和 BLE 数据同步逻辑。接口约定见 [`protocol/xiaozhi-bridge.md`](../protocol/xiaozhi-bridge.md)。
 
 ## 开源复现
 

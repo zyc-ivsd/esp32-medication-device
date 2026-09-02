@@ -34,6 +34,7 @@ Flutter 手机 App：BLE Client、SQLite、历史记录、数据导出
 | `firmware/` | ESP32-S3 的 ESP-IDF 固件 |
 | `mobile_app/` | Flutter 手机 App |
 | `tools/python/` | 电脑端 BLE 调试和数据分析工具 |
+| `server/assistant-gateway/` | 第二阶段预留的 AI 网关说明 |
 | `hardware/` | 原理图、PCB、BOM 和硬件说明 |
 | `docs/` | 技术报告、开发流程和测试记录 |
 | `samples/` | 模拟记录和示例数据 |
@@ -106,7 +107,7 @@ pip install -r requirements.txt
 
 - BLE 协议和数据存储：已完成基础联调。
 - 硬件：采购中。
-- Flutter 手机 App：待继续开发。
+- Flutter 手机 App：已加入第一阶段 AI 助手 Mock 框架，BLE 页面待硬件联调。
 - Python 工具：作为可选调试工具保留。
 
 ## 许可证

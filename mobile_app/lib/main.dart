@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'assistant/assistant_page.dart';
+
 void main() {
   runApp(const MedicationDeviceApp());
 }
@@ -30,13 +32,28 @@ class HomePage extends StatelessWidget {
           children: [
             const Icon(Icons.bluetooth_searching, size: 64),
             const SizedBox(height: 16),
-            const Text('Flutter App 初始骨架'),
+            const Text('Flutter App 第一阶段骨架'),
             const SizedBox(height: 8),
-            FilledButton(
+            OutlinedButton.icon(
               onPressed: () {
-                // TODO: 在 ble/ 中接入扫描、连接和同步服务。
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('BLE 扫描模块待接入硬件联调。')),
+                );
               },
-              child: const Text('扫描设备'),
+              icon: const Icon(Icons.bluetooth_searching),
+              label: const Text('扫描设备'),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AssistantPage(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.chat),
+              label: const Text('打开 AI 助手'),
             ),
           ],
         ),
