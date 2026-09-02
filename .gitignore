@@ -1,0 +1,52 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec_overrides.yaml
+
+# Android / iOS generated files
+**/.gradle/
+**/local.properties
+**/Generated.xcconfig
+**/Flutter/ephemeral/
+**/Pods/
+**/.symlinks/
+
+# ESP-IDF generated files
+firmware/**/build/
+firmware/**/sdkconfig
+firmware/**/sdkconfig.old
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Secrets and local data
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.sqlite
+*.db
+
+# Generated binaries and private data
+*.apk
+*.aab
+*.bin
+*.elf
+*.map
+*.log
