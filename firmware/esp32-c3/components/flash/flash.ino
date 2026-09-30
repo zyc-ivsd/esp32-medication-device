@@ -1,6 +1,14 @@
 #include "SPIFFS.h"
 #include <Arduino.h>
 
+// ===================== 对外接口前置声明 =====================
+bool writeFile();
+bool sendAllFiles();
+extern uint8_t packetBuffer[];
+extern uint32_t packetNumber;
+extern volatile bool deviceConnected;
+extern BLECharacteristic *pCharacteristic;
+
 /*
  *   向文件系统中写入数据
  */
@@ -9,6 +17,9 @@ bool writeFile()
     time_t now = time(nullptr);
     struct tm timeinfo;
     localtime_r(&now, &timeinfo);
+
+    // 写记录时顺带把当前时间持久化到 NVS，断电后可恢复到最近一次记录的时间
+    saveTimeToNVS();
 
     char timeString[32];
     strftime(timeString, sizeof(timeString), "%Y-%m-%d_%H-%M-%S", &timeinfo);
