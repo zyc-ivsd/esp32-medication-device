@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+
 import 'ble_service.dart';
 
 class BleConnectionCard extends StatelessWidget {
@@ -78,7 +80,9 @@ class _BleStatusPageState extends State<BleStatusPage> {
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text('这里保存硬件启动/按键产生的时间文本。设备时间可能尚未校准；这些文本不计入正式事件统计。'),
+            const Text('这里保存硬件按键产生的时间文本。配套固件连接后自动校时；已有文件保持原文，这些文本不计入正式事件统计。'),
+            const SizedBox(height: 8),
+            const Text('设备断开且空闲 30 秒后进入浅睡眠；扫描不到时先按硬件按钮唤醒，再点击扫描。'),
             const SizedBox(height: 12),
             Card(
               child: Padding(
@@ -94,6 +98,11 @@ class _BleStatusPageState extends State<BleStatusPage> {
                       SelectableText('连接：${_service.connectedDeviceId}'),
                     if (_service.stableDeviceId != null)
                       SelectableText('设备 ID：${_service.stableDeviceId}'),
+                    Text(_service.clockStatusLabel),
+                    if (_service.lastClockCalibrationAt != null)
+                      Text(
+                        '本次校时：${_service.lastClockCalibrationAt!.toLocal().toString().split('.').first}',
+                      ),
                     Text(
                       '累计收到 ${_service.receivedBytes} 字节 · 本轮保存 ${_service.syncedCount} 条',
                     ),
@@ -148,6 +157,13 @@ class _BleStatusPageState extends State<BleStatusPage> {
                   onPressed: _service.canSync ? _service.requestSync : null,
                   icon: const Icon(Icons.sync),
                   label: const Text('重新同步'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _service.canCalibrateClock
+                      ? () => _service.requestClockCalibration(syncAfter: true)
+                      : null,
+                  icon: const Icon(Icons.schedule),
+                  label: const Text('校准设备时间'),
                 ),
                 OutlinedButton(
                   onPressed: _service.hasConnection

@@ -1,16 +1,22 @@
-#include "esp_sleep.h"
+#include <esp_sleep.h>
+#include <driver/gpio.h>
 
-/*
-bool deadlineReached(uint32_t deadline)
-{
-  return static_cast<int32_t>(millis() - deadline) >= 0;
+// Explicit light sleep stops BLE. GPIO4 wakes the device; a phone cannot scan or
+// connect until advertising has restarted. UART/USB wake is not promised.
+bool configureLightSleepWakeup() {
+  esp_err_t error = gpio_wakeup_enable(static_cast<gpio_num_t>(BUTTON_PIN), GPIO_INTR_LOW_LEVEL);
+  if (error == ESP_OK) error = esp_sleep_enable_gpio_wakeup();
+  if (error != ESP_OK) Serial.printf("SLEEP_WAKE_CONFIG_FAILED: %d\n", error);
+  return error == ESP_OK;
 }
-
-void enterDeepSleep()
-{
-  Serial.println("准备进入 Deep Sleep...");
+bool enterLightSleep() {
+  if (clockValid && !saveTimeToNVS()) Serial.println("CLOCK_SNAPSHOT_FAILED: RTC remains active in light sleep");
+  Serial.println("LIGHT_SLEEP: press GPIO4 button to wake, then reconnect in app");
   Serial.flush();
-  delay(100);
-  esp_deep_sleep_start();
+  const esp_err_t error = esp_light_sleep_start();
+  if (error != ESP_OK) {
+    Serial.printf("LIGHT_SLEEP_FAILED: %d; returning to advertising\n", error);
+    return false;
+  }
+  return esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO;
 }
-*/

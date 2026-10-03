@@ -75,15 +75,13 @@ void syncError(const String &reason) {
 }
 bool writeFile() {
   if (!storageReady || !counterReady) return false;
-  time_t now = time(nullptr);
   struct tm timeinfo;
-  localtime_r(&now, &timeinfo);
+  getDeviceLocalTime(timeinfo);
   char timeString[32];
   strftime(timeString, sizeof(timeString), "%Y-%m-%d_%H-%M-%S", &timeinfo);
   uint32_t counter = fileCounter.getUInt("next", 1);
   String fileName;
-  // A reboot still uses the old manually-set clock; never reuse/overwrite a
-  // timestamp filename, including two button presses during the same second.
+  // Never reuse a filename, including clock corrections and same-second presses.
   do {
     if (counter == UINT32_MAX) { Serial.println("FILE_COUNTER_EXHAUSTED"); return false; }
     fileName = "/data_" + String(timeString) + "_" + String(counter++) + ".txt";
@@ -96,6 +94,8 @@ bool writeFile() {
   file.flush();
   file.close();
   if (written != line.length()) { Serial.println("WRITE_INCOMPLETE " + fileName); return false; }
+  if (clockValid && !saveTimeToNVS()) Serial.println("CLOCK_SNAPSHOT_FAILED: file is still retained");
+  if (!clockSynced) Serial.println("RECORD_TIME_UNCALIBRATED: raw text only");
   Serial.println("CREATED " + fileName);
   return true;
 }
@@ -171,7 +171,21 @@ void handleCommand(const String &command) {
   Serial.println("CONTROL " + command);
   if (command == "HELLO") { helloPending = true; return; }
   if (!helloReady || !notifyReady()) return;
-  if (command.startsWith("SYNC_REQ|")) {
+  if (command.startsWith("TIME|")) {
+    PhoneClockCommand clock;
+    if (!parsePhoneClock(command.c_str(), clock)) { sendFrame("TIME_ERR|BAD_TIME"); return; }
+    if (syncActive) { sendFrame("TIME_ERR|BUSY"); return; }
+    static String lastClockCommand;
+    static uint32_t clockGeneration = UINT32_MAX;
+    // Lost acknowledgments retry the same command without moving the clock back.
+    if (clockGeneration != connectionGeneration || lastClockCommand != command) {
+      if (!setPhoneTime(clock.utc, clock.offset)) { sendFrame("TIME_ERR|CLOCK_STORAGE"); return; }
+      lastClockCommand = command;
+      clockGeneration = connectionGeneration;
+      printTime();
+    }
+    sendFrame("TIME_OK|" + command.substring(5));
+  } else if (command.startsWith("SYNC_REQ|")) {
     const String token = command.substring(9);
     if (validToken(token)) beginSync(token);
   } else if (syncActive && waitingStart && command == "START|" + syncToken) {
@@ -208,7 +222,7 @@ void serviceSync() {
   }
   if (helloPending && notifyReady()) {
     helloPending = false;
-    helloReady = sendFrame("READY|" + stableDeviceId + "|P01");
+    helloReady = sendFrame("READY|" + stableDeviceId + "|P01|TIME1");
   }
   if (syncActive && deviceConnected && millis() - lastFrameAt >= ACK_TIMEOUT_MS) {
     if (retryCount++ >= MAX_RETRIES) { syncError("ACK_TIMEOUT"); return; }

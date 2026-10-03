@@ -1,0 +1,55 @@
+name: ESP32-C3 firmware check
+
+on:
+  push:
+    branches: [main, codex/android-xiaozhi-prep]
+    paths: ['firmware/esp32-c3/**', 'protocol/prototype-text-v01.md', '.github/workflows/firmware-check.yml']
+  pull_request:
+    paths: ['firmware/esp32-c3/**', 'protocol/prototype-text-v01.md', '.github/workflows/firmware-check.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firmware-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test phone clock protocol
+        run: |
+          set -euo pipefail
+          mkdir -p build/firmware-validation
+          g++ -std=c++11 -Wall -Wextra -Werror firmware/esp32-c3/tests/clock_command_test.cpp -o build/clock-test
+          build/clock-test | tee build/firmware-validation/clock-test.txt
+      - uses: arduino/setup-arduino-cli@v2
+        with:
+          version: '1.3.1'
+      - name: Install pinned ESP32 core
+        run: |
+          set -euo pipefail
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.11 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - name: Compile ESP32-C3
+        run: |
+          set -euo pipefail
+          arduino-cli compile --fqbn esp32:esp32:esp32c3 --output-dir build/firmware firmware/esp32-c3/main 2>&1 | tee build/firmware-validation/build.txt
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-validation-${{ github.sha }}
+          path: build/firmware-validation/*.txt
+          retention-days: 14
+      - name: Upload firmware for hardware review
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32c3-internal-test-${{ github.sha }}
+          path: build/firmware/*.bin
+          retention-days: 14
+          if-no-files-found: error

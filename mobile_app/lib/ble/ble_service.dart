@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'ble_transport.dart';
 import 'prototype_protocol.dart';
 import 'prototype_store.dart';
@@ -26,10 +28,19 @@ enum BleConnectionStatus {
   scanning,
   connecting,
   subscribing,
+  calibrating,
   ready,
   syncing,
   complete,
   error,
+}
+
+enum ClockCalibrationStatus {
+  unavailable,
+  unsupported,
+  pending,
+  synced,
+  failed,
 }
 
 /// B's scan/reconnect flow with durable text sync. Owned above navigation, so
@@ -41,7 +52,10 @@ class BleService extends ChangeNotifier {
     this.usePreferences = true,
     this.handshakeInterval = const Duration(seconds: 1),
     this.reconnectDelay = const Duration(seconds: 2),
+    this.clockRetryInterval = const Duration(seconds: 2),
+    DateTime Function()? clock,
   }) : _transportOverride = transport,
+       _clock = clock ?? DateTime.now,
        _store = store; // ignore: prefer_initializing_formals
   factory BleService.test() => BleService(usePreferences: false);
   final BleTransport? _transportOverride;
@@ -64,6 +78,8 @@ class BleService extends ChangeNotifier {
   final bool usePreferences;
   final Duration handshakeInterval;
   final Duration reconnectDelay;
+  final Duration clockRetryInterval;
+  final DateTime Function() _clock;
   static const maxReconnectAttempts = 3;
   static const serviceUuid = prototypeServiceUuid;
   static const notifyCharacteristicUuid = prototypeCharacteristicUuid;
@@ -99,10 +115,33 @@ class BleService extends ChangeNotifier {
   int syncedCount = 0;
   int _commitRetries = 0;
   PrototypeSync? _sync;
+  bool supportsClockCalibration = false;
+  ClockCalibrationStatus clockStatus = ClockCalibrationStatus.unavailable;
+  DateTime? lastClockCalibrationAt;
+  String? _clockCommand;
+  int _clockAttempts = 0;
+  bool _syncAfterClock = false;
+  bool get canCalibrateClock =>
+      _linkConnected &&
+      stableDeviceId != null &&
+      supportsClockCalibration &&
+      _sync == null &&
+      clockStatus != ClockCalibrationStatus.pending &&
+      status != BleConnectionStatus.syncing;
+  String get clockStatusLabel => switch (clockStatus) {
+    ClockCalibrationStatus.unavailable => '设备时间：连接后检查',
+    ClockCalibrationStatus.unsupported => '设备时间：旧固件不支持手机校时',
+    ClockCalibrationStatus.pending => '设备时间：正在使用手机时间校准',
+    ClockCalibrationStatus.synced => '设备时间：已按手机时间与时区校准',
+    ClockCalibrationStatus.failed => '设备时间：校准失败，请重试校时',
+  };
   bool get hasConnection => connectedDeviceId != null;
   bool get canSync =>
       _linkConnected &&
       stableDeviceId != null &&
+      clockStatus != ClockCalibrationStatus.pending &&
+      (!supportsClockCalibration ||
+          clockStatus == ClockCalibrationStatus.synced) &&
       _sync == null &&
       status != BleConnectionStatus.syncing;
   String get statusLabel => switch (status) {
@@ -110,6 +149,7 @@ class BleService extends ChangeNotifier {
     BleConnectionStatus.scanning => '扫描中',
     BleConnectionStatus.connecting => '连接中',
     BleConnectionStatus.subscribing => '已连接，等待订阅握手',
+    BleConnectionStatus.calibrating => '正在校准设备时间',
     BleConnectionStatus.ready => '订阅已确认',
     BleConnectionStatus.syncing => '正在接收并保存',
     BleConnectionStatus.complete => '原型文本已保存',
@@ -122,6 +162,7 @@ class BleService extends ChangeNotifier {
   Timer? _scanTimer;
   Timer? _handshakeTimer;
   Timer? _syncTimer;
+  Timer? _clockTimer;
   DateTime? _lastScanStopped;
   final _buffer = PrototypeLineBuffer();
   Future<void> _incoming = Future.value();
@@ -148,6 +189,12 @@ class BleService extends ChangeNotifier {
     if (_disposed) return;
     _handshakeTimer?.cancel();
     _syncTimer?.cancel();
+    _clockTimer?.cancel();
+    _clockCommand = null;
+    _syncAfterClock = false;
+    if (clockStatus == ClockCalibrationStatus.pending) {
+      clockStatus = ClockCalibrationStatus.failed;
+    }
     _sync = null;
     lastError = '$error';
     needsPermissionSettings =
@@ -415,14 +462,19 @@ class BleService extends ChangeNotifier {
     }
     if (fields[0] == 'READY') {
       if (status != BleConnectionStatus.subscribing) return;
-      if (fields.length != 3 ||
+      if ((fields.length != 3 && fields.length != 4) ||
           fields[2] != 'P01' ||
+          (fields.length == 4 && fields[3] != 'TIME1') ||
           !RegExp(r'^[0-9A-Fa-f]{12}$').hasMatch(fields[1])) {
         throw const FormatException('设备 READY 格式或协议版本不匹配');
       }
       if (stableDeviceId != null) return;
       _handshakeTimer?.cancel();
       stableDeviceId = fields[1].toUpperCase();
+      supportsClockCalibration = fields.length == 4;
+      clockStatus = supportsClockCalibration
+          ? ClockCalibrationStatus.unavailable
+          : ClockCalibrationStatus.unsupported;
       _lastDeviceId = connectedDeviceId;
       _state(BleConnectionStatus.ready);
       _log('收到 READY：通知链路已确认，设备 $stableDeviceId');
@@ -431,7 +483,40 @@ class BleService extends ChangeNotifier {
         if (!_active(epoch)) return;
         await prefs.setString('ble.last_device_id', _lastDeviceId!);
       }
-      if (_active(epoch)) await requestSync();
+      if (_active(epoch)) {
+        if (supportsClockCalibration) {
+          // Only wait for the write here. Waiting for TIME_OK would block the
+          // serialized notification queue that must deliver that acknowledgment.
+          await requestClockCalibration(syncAfter: true);
+        } else {
+          _log('旧 P01 固件无 TIME1：保留原同步，原始时间未经手机校准');
+          await requestSync();
+        }
+      }
+      return;
+    }
+    if (fields[0] == 'TIME_OK') {
+      if (clockStatus != ClockCalibrationStatus.pending ||
+          fields.length != 3 ||
+          _clockCommand?.substring(5) != fields.skip(1).join('|')) {
+        return;
+      }
+      _clockTimer?.cancel();
+      _clockCommand = null;
+      clockStatus = ClockCalibrationStatus.synced;
+      lastClockCalibrationAt = _clock();
+      final syncAfter = _syncAfterClock;
+      _syncAfterClock = false;
+      lastError = null;
+      _state(BleConnectionStatus.ready);
+      _log('校时已获设备确认；历史文件保持原文，不补造过去的时间');
+      if (syncAfter) await requestSync();
+      return;
+    }
+    if (fields[0] == 'TIME_ERR') {
+      if (clockStatus == ClockCalibrationStatus.pending && fields.length == 2) {
+        _fail('设备校时失败（${fields[1]}）；检查固件/NVS 后点击“校准设备时间”');
+      }
       return;
     }
     final sync = _sync;
@@ -450,6 +535,47 @@ class BleService extends ChangeNotifier {
     } else {
       _armSyncTimeout(epoch);
       _changed();
+    }
+  }
+
+  Future<void> requestClockCalibration({bool syncAfter = false}) async {
+    if (_disposed || !_foreground || !canCalibrateClock) return;
+    final now = _clock();
+    final utc = now.millisecondsSinceEpoch ~/ 1000;
+    final offset = now.timeZoneOffset.inMinutes;
+    if (utc < 946684800 || utc > 4102444799 || offset.abs() > 840) {
+      clockStatus = ClockCalibrationStatus.failed;
+      _fail('手机日期或时区超出支持范围（2000–2099 年、UTC ±14 小时），请检查系统时间');
+      return;
+    }
+    final command = 'TIME|${utc.toRadixString(16).padLeft(8, '0')}|$offset';
+    _clockCommand = command;
+    _clockAttempts = 0;
+    _syncAfterClock = syncAfter;
+    clockStatus = ClockCalibrationStatus.pending;
+    lastClockCalibrationAt = null;
+    lastError = null;
+    _state(BleConnectionStatus.calibrating);
+    await _sendClock(command, _epoch);
+  }
+
+  Future<void> _sendClock(String command, int epoch) async {
+    if (!_active(epoch) || _clockCommand != command) return;
+    if (_clockAttempts++ >= 3) {
+      _fail('设备校时超时；文件仍保留，请点击“校准设备时间”重试');
+      return;
+    }
+    try {
+      await _write(command, epoch, guard: () => _clockCommand == command);
+      if (_active(epoch) && _clockCommand == command) {
+        _clockTimer?.cancel();
+        _clockTimer = Timer(
+          clockRetryInterval,
+          () => unawaited(_sendClock(command, epoch)),
+        );
+      }
+    } catch (error) {
+      if (_active(epoch)) _fail(error);
     }
   }
 
@@ -537,6 +663,12 @@ class BleService extends ChangeNotifier {
   Future<void> _clearLink() async {
     _handshakeTimer?.cancel();
     _syncTimer?.cancel();
+    _clockTimer?.cancel();
+    _clockCommand = null;
+    _syncAfterClock = false;
+    supportsClockCalibration = false;
+    clockStatus = ClockCalibrationStatus.unavailable;
+    lastClockCalibrationAt = null;
     _linkConnected = false;
     _sync = null;
     _buffer.reset();
