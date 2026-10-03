@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../assistant/assistant_page.dart';
+import '../assistant/rules/observation_rules.dart';
 import '../database/record_repository.dart';
 import '../models/medication_record.dart';
 import '../models/record_filter.dart';
@@ -32,6 +33,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _tab = 0;
   bool _working = false;
+
+  /// 用户在本次会话里关掉提醒卡片后不再显示；重新打开 App 会重新评估。
+  bool _alertDismissed = false;
   RecordController get data => widget.controller;
   @override
   void initState() {
@@ -171,6 +175,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       animation: data,
       builder: (context, _) => Scaffold(
           appBar: AppBar(title: const Text('用药装置'), actions: [
+            // 助手是核心入口，不能只藏在滚动区底部的按钮里。
+            IconButton(
+                onPressed:
+                    data.summary == null || data.loading ? null : _openAssistant,
+                tooltip: '记录助手',
+                icon: const Icon(Icons.chat_bubble_outline)),
             IconButton(
                 onPressed: data.loading ? null : data.refresh,
                 tooltip: '刷新记录',
@@ -220,9 +230,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                   const EdgeInsets.symmetric(horizontal: 20),
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                  color: const Color(0xfffff0ce),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .tertiaryContainer,
                                   borderRadius: BorderRadius.circular(12)),
-                              child: const Text('当前为演示数据，与设备记录分开保存。')),
+                              child: Text('当前为演示数据，与设备记录分开保存。',
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onTertiaryContainer))),
                         if (data.loading)
                           const LinearProgressIndicator(minHeight: 2),
                         Expanded(
@@ -244,6 +260,57 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 NavigationDestination(icon: Icon(Icons.history), label: '历史记录'),
               ])));
 
+  /// 与助手共用同一套规则：概览页只负责把 attention 级观察提前告诉用户，
+  /// 自己不再实现一份判断逻辑。
+  List<AssistantObservation> _attentionObservations() {
+    final summary = data.summary;
+    if (summary == null) return const [];
+    return evaluateObservations(summary.toAssistantContext(data.source),
+            now: data.clock())
+        .where((observation) => observation.level == ObservationLevel.attention)
+        .toList(growable: false);
+  }
+
+  Widget _alertCard(List<AssistantObservation> observations) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+        margin: EdgeInsets.zero,
+        color: scheme.tertiaryContainer,
+        child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
+            child:
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.notifications_active_outlined,
+                  size: 22, color: scheme.onTertiaryContainer),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text('需要留意 ${observations.length} 项',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: scheme.onTertiaryContainer)),
+                    const SizedBox(height: 8),
+                    for (final observation in observations)
+                      Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text('· ${observation.text}',
+                              style: TextStyle(
+                                  color: scheme.onTertiaryContainer))),
+                    Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                            onPressed: _openAssistant,
+                            child: const Text('问问记录助手'))),
+                  ])),
+              IconButton(
+                  onPressed: () => setState(() => _alertDismissed = true),
+                  tooltip: '本次不再显示',
+                  icon: const Icon(Icons.close)),
+            ])));
+  }
+
   Widget _errorView() => Center(
       child: Padding(
           padding: const EdgeInsets.all(24),
@@ -256,6 +323,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Widget _overview() {
     final summary = data.summary;
+    final alerts = _attentionObservations();
+    final showAlerts = !_alertDismissed && alerts.isNotEmpty;
     return ListView(
         padding: const EdgeInsets.all(20),
         physics: const AlwaysScrollableScrollPhysics(),
@@ -268,6 +337,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           const SizedBox(height: 6),
           const Text('记录保存在本机 · 无需联网查看'),
           const SizedBox(height: 20),
+          if (showAlerts) ...[
+            _alertCard(alerts),
+            const SizedBox(height: 20)
+          ],
           LayoutBuilder(builder: (context, constraints) {
             final columns = constraints.maxWidth >= 650 ? 4 : 2;
             final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
@@ -319,6 +392,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                   ]))
                             ]))),
           const SizedBox(height: 12),
+          if ((summary?.total ?? 0) == 0)
+            const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text('还没有记录。记录助手需要有记录才有内容可解释，可以先载入演示数据看看。')),
           if (data.source == RecordSource.device || (summary?.total ?? 0) == 0)
             OutlinedButton.icon(
                 onPressed: _working ? null : _importDemo,
@@ -331,8 +408,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               icon: const Icon(Icons.chat_bubble_outline),
               label: const Text('问问记录助手')),
           const SizedBox(height: 12),
-          const Text('助手使用本地规则解释统计。设备事件不等于确认服药，也不用于计算药量。',
-              style: TextStyle(fontSize: 12, color: Color(0xff586b70))),
+          Text('助手使用本地规则解释统计。设备事件不等于确认服药，也不用于计算药量。',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ]);
   }
 

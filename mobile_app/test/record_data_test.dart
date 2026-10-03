@@ -186,6 +186,10 @@ void main() {
     expect(context.isDemo, isTrue);
     expect(context.last7DaysCount, 2);
     expect(context.unknownTimeCount, 2);
+    expect(context.totalCount, 8);
+    expect(context.dailyCounts, hasLength(7));
+    // Mirrors the gateway contract: the series must add up to the 7-day total.
+    expect(context.dailyCounts.fold(0, (sum, count) => sum + count), 2);
   });
 
   test(

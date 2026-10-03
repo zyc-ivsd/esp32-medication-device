@@ -14,6 +14,22 @@ void main() {
     expect(context.toJson()['last_7_days_count'], 12);
   });
 
+  test('assistant context keys match the gateway contract', () {
+    // 网关用严格相等校验字段集合（多一个少一个都是 400），所以这份字面量必须和
+    // server/assistant-gateway/tests/test_gateway.py 里那份保持一致。
+    expect(context.toJson().keys.toSet(), {
+      'today_count',
+      'last_7_days_count',
+      'invalid_event_count',
+      'unknown_time_count',
+      'future_time_count',
+      'total_count',
+      'is_demo',
+      'last_sync_at',
+      'daily_counts',
+    });
+  });
+
   test('mock assistant answers usage question', () async {
     final answer = await AssistantService().ask(
       question: '今天用了几次？',

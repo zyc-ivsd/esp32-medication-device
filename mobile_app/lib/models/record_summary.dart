@@ -90,5 +90,8 @@ class RecordSummary {
         isDemo: source == RecordSource.demo,
         unknownTimeCount: unknownTimeCount,
         futureTimeCount: futureTimeCount,
+        totalCount: total,
+        // 与 last7DaysCount 同源，两者之和必须一致，网关也会校验。
+        dailyCounts: [for (final day in days) day.count],
       );
 }

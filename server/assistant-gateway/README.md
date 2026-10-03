@@ -1,6 +1,10 @@
 # Android 文字助手网关
 
-可运行的 Python 服务：Android HTTPS JSON → 自建 `xiaozhi-esp32-server` WebSocket。默认 `mock` 只用于验证 App 到网关的链路；`xiaozhi` 才连接真实小智服务。当前为受控原型，尚未接入团队的真实服务器。
+> **已废弃（2026-09-30），仅作历史保留，不再推荐部署。** 在线助手的 forward 路线改为 **App 直连用户自己的模型（BYOK）**：API Key 只能是用户自己的、存 `flutter_secure_storage`、绝不出手机。本网关的 `xiaozhi` / `llm` 上游都要求服务端持有团队 Key（或透传用户 Key），与这条规则冲突，因此不再使用；`mock` 模式也只作历史联调参考。要了解现行规则，见 [`docs/assistant-model-access.md`](../../docs/assistant-model-access.md)。
+
+下面是历史说明，保留给需要复现上一阶段联调的成员。
+
+可运行的 Python 服务：Android HTTPS JSON → 上游。三种上游模式：`mock`（不调用模型）、`xiaozhi`（自建 `xiaozhi-esp32-server` 的 WebSocket）、`llm`（任意 OpenAI 兼容 API）。当前为受控原型，尚未接入团队的真实服务器。
 
 ## 1. 先运行本机 mock
 
@@ -61,6 +65,21 @@ Android 模拟器可使用 `http://10.0.2.2:8787/v1/assistant/chat`。断开 USB
 
 先在自建小智确认：设备绑定成功、LLM 与 TTS 可用、用于记录解释的角色已配置，并关闭该测试身份的长期记忆、对话持久报告及服务端外部工具。客户端声明不启用 MCP，不会自动禁用服务器自带工具。此实现按设备身份串行处理，暂不支持不同用户共享同一个有记忆的助手身份。
 
+### 想让 App 用上智控台里配的知识库（RAG）
+
+网关发送的是 `state=detect` 的文字消息，服务端会走 `startToChat` —— **与语音问答是同一条管线**。所以智控台里配好的角色设定、知识库、记忆都会作用于 App 的文字提问。
+
+RAGFlow 知识库需要智控台 **0.8.7 或以上**，并在服务端做这四步：
+
+1. `参数字典` → `系统功能配置` → 勾选 **知识库** → 保存配置；
+2. `模型配置` → 左侧 `知识库` → 编辑 `RAG_RAGFlow`，填入 RAGFlow 的 `base_url` 与 `api_key`；
+3. `智能体` → 找到网关绑定的那个智能体 → `配置角色` → 在**意图识别**左侧点 `编辑功能` → 添加要用的知识库 → 保存；
+4. **意图识别不要设成 `nointent`** —— 模型要靠函数调用（`function_call` / `intent_llm`）才能触发 `search_from_ragflow` 去检索，`nointent` 下知识库不会生效。
+
+验证方法：问一个只有知识库里才有答案的问题，对比开启/关闭知识库时的回答。
+
+**声纹识别对文字路径无效** —— 声纹需要麦克风音频，而 App 只发文字，不要把它列为本次验收项。
+
 停止 mock 进程。设置真实值后启动（以下为 PowerShell 模板，尖括号内容必须替换；不把真实值保存进仓库）：
 
 ```powershell
@@ -77,13 +96,45 @@ $env:GATEWAY_TOKEN = '<至少24位的随机网关访问码>'
 
 Linux 用同名 `export NAME='value'`，再执行 `.venv/bin/python gateway.py`。公开访问时保持单进程、一个专用上游身份；生产化多人服务需另做账号、身份与记忆隔离，不能通过直接多开进程实现。
 
-## 4. 联调验收
+## 4. 另一种方式：直连模型 API，不需要小智服务端
+
+如果只是想让在线助手用上大模型，**不必部署 `xiaozhi-esp32-server`**。`GATEWAY_MODE=llm` 直接调用 **OpenAI 兼容**的 `/chat/completions`，任何兼容接口都可以（DeepSeek、阿里百炼、火山、智谱、本地 Ollama 等）。
+
+**模型 API Key 只配在这里，不要写进 App、APK、构建参数或仓库。** App 永远只拿网关访问码。
+
+| 配置 | 说明 |
+|---|---|
+| `GATEWAY_MODE` | 设为 `llm` |
+| `LLM_BASE_URL` | 写到 `/chat/completions` **之前**，例如 `https://api.deepseek.com/v1`、本地 Ollama `http://127.0.0.1:11434/v1` |
+| `LLM_API_KEY` | 模型平台签发的 Key |
+| `LLM_MODEL` | 模型名，例如 `deepseek-chat`、`qwen-plus`、`llama3.1` |
+| `GATEWAY_TOKEN` | 另外生成的网关访问码；**App 里填的是这个，不是模型 Key** |
+
+```powershell
+$env:GATEWAY_MODE = 'llm'
+$env:LLM_BASE_URL = 'https://api.deepseek.com/v1'
+$env:LLM_API_KEY = '<模型平台密钥>'
+$env:LLM_MODEL = 'deepseek-chat'
+$env:GATEWAY_TOKEN = '<至少24位的随机网关访问码>'
+.\.venv\Scripts\python.exe gateway.py
+```
+
+约束：
+
+- `LLM_BASE_URL` 必须是 `https`；**只有**指向 `127.0.0.1` / `localhost` 时才允许 `http`（本地模型服务）。非回环用 http 会在启动时直接报错。
+- 请求无状态：每次提问都是独立会话，不发送历史对话。system 提示词写在 `gateway.py` 的 `SYSTEM_PROMPT`：**摘要是参考资料而不是必答题**——问题与记录有关才用它，问通用健康知识就直接答，但要在最后一行标出 `【来源】记录统计` 或 `【来源】AI知识`（App 侧解析该标记，给通用知识回答补一句「不是你的设备记录」）。禁止诊断、剂量建议和工具调用，这一条没有放宽。
+- 上游失败（401/429/非 JSON/空回复/超长）一律返回 `502`，**不会退回 mock 伪造成功**。
+- 返回给 App 的 `provider` 是 `llm`。
+
+## 5. 联调验收
 
 | 操作 | 预期 |
 |---|---|
 | 本地规则模式、断网 | 原有摘要仍可用 |
 | 网关 mock | 回复明确提示未调用小智 |
-| 真实小智 + 演示摘要 | 收到完整文字回答，不能把演示说成真实服药；响应 provider 为 xiaozhi |
+| 真实小智 + 演示摘要 | 收到完整文字回答，不能把演示说成真实服药；响应 provider 为 `xiaozhi` |
+| 真实小智 + 知识库问题 | 问一个只有知识库里才有答案的问题，能引用知识库内容；意图识别不能用 `nointent` |
+| 直连模型（`llm`）| 响应 provider 为 `llm`；模型 Key 不出现在 App 或响应里 |
 | 访问码错误 | 提示访问码无效，不回显密钥 |
 | 关闭上游或让其超时 | 显示失败；不能悄悄用 mock 或半截回答代替 |
 | 两个问题同时提交 | 后来的请求返回 429，请稍后重试 |
@@ -93,7 +144,7 @@ Linux 用同名 `export NAME='value'`，再执行 `.venv/bin/python gateway.py`�
 
 `python -m unittest discover -s tests -v` 会在本机启动模拟 WebSocket 服务，验证握手、鉴权转发、文字聚合、二进制丢弃、错误、超时与并发；**它不证明真实小智服务器或模型已通过**。
 
-## 5. 实现范围
+## 6. 实现范围
 
 协议、字段及核对的上游提交见 [xiaozhi-bridge.md](../../protocol/xiaozhi-bridge.md)。默认上游总超时 45 秒，只上传单次问题与摘要，无历史对话重发；每次请求新建上游连接，但上游是否持久记忆仍由部署配置决定。
 

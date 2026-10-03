@@ -19,7 +19,17 @@ class _RemoteFailure implements AssistantProvider {
   Future<String> reply({
     required String question,
     required AssistantContext context,
+    List<String> references = const [],
   }) async => throw const AssistantException('在线助手响应超时，请稍后重试或切回本地摘要。');
+}
+
+/// 设置表单比默认 600 视口高，内容会长在弹窗的可滚动区里；
+/// 放大视口免得勾选框落在可视区外点不到。
+void _useTallViewport(WidgetTester tester) {
+  tester.view.physicalSize = const Size(800, 1600);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
 }
 
 void main() {
@@ -27,6 +37,8 @@ void main() {
     todayCount: 2,
     last7DaysCount: 8,
     isDemo: true,
+    totalCount: 21,
+    dailyCounts: [0, 1, 0, 2, 0, 0, 5],
   );
 
   test('HTTPS is required outside explicit loopback debug transport', () {
@@ -84,6 +96,15 @@ void main() {
               jsonDecode(await utf8.decoder.bind(request).join()) as Map;
           expect(data.keys.toSet(), {'schema_version', 'question', 'context'});
           expect(data['context'], context.toJson());
+          final wireContext = data['context'] as Map;
+          expect(wireContext['daily_counts'], [0, 1, 0, 2, 0, 0, 5]);
+          expect(wireContext['total_count'], 21);
+          // The gateway rejects summaries whose series contradicts the total.
+          expect(
+            (wireContext['daily_counts'] as List)
+                .fold<int>(0, (sum, count) => sum + (count as int)),
+            wireContext['last_7_days_count'],
+          );
           request.response.headers.contentType = ContentType.json;
           request.response.write(
             jsonEncode({
@@ -109,6 +130,28 @@ void main() {
       );
     },
   );
+
+  test('an llm provider answer is shown without a demo prefix', () async {
+    await withServer(
+      (request) async {
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'schema_version': 1,
+            'answer': '近 7 天共 8 次使用动作，有 2 天没有设备记录。',
+            'provider': 'llm',
+          }),
+        );
+        await request.response.close();
+      },
+      (endpoint) async {
+        final answer = await GatewayAssistantProvider(endpoint: endpoint)
+            .reply(question: '有什么建议？', context: context);
+        expect(answer, '近 7 天共 8 次使用动作，有 2 天没有设备记录。');
+        expect(answer, isNot(contains('尚未调用小智')));
+      },
+    );
+  });
 
   test(
     'HTTP auth errors do not expose upstream payloads and redirects are not followed',
@@ -141,6 +184,59 @@ void main() {
       }
     },
   );
+
+  test('failures surface the gateway request id but not the error body', () async {
+    await withServer(
+      (request) async {
+        request.response.statusCode = 502;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode({
+          'error': {
+            'code': 'upstream_protocol',
+            'message': 'private-upstream-detail',
+          },
+          'request_id': 'abcdef0123456789abcdef0123456789',
+        }));
+        await request.response.close();
+      },
+      (endpoint) async {
+        try {
+          await GatewayAssistantProvider(
+            endpoint: endpoint,
+          ).reply(question: '次数？', context: context);
+          fail('Expected a sanitized failure');
+        } on AssistantException catch (error) {
+          // 用户能凭编号报问题，但看不到上游自己的说明。
+          expect(error.requestId, 'abcdef0123456789abcdef0123456789');
+          expect(error.message, contains('请求编号'));
+          expect(error.message, isNot(contains('private-upstream-detail')));
+          expect(error.message, isNot(contains('upstream_protocol')));
+        }
+      },
+    );
+  });
+
+  test('a failure without a request id keeps the plain message', () async {
+    await withServer(
+      (request) async {
+        // 没有 request_id，甚至根本不是 JSON。
+        request.response.statusCode = 500;
+        request.response.write('<html>gateway error</html>');
+        await request.response.close();
+      },
+      (endpoint) async {
+        try {
+          await GatewayAssistantProvider(
+            endpoint: endpoint,
+          ).reply(question: '次数？', context: context);
+          fail('Expected a sanitized failure');
+        } on AssistantException catch (error) {
+          expect(error.requestId, isNull);
+          expect(error.message, '在线助手暂时不可用，请稍后重试或切回本地摘要。');
+        }
+      },
+    );
+  });
 
   test(
     'invalid, empty and oversized JSON responses fail without a local fallback',
@@ -191,23 +287,29 @@ void main() {
     });
   });
 
-  testWidgets('online setup requires consent before enabling a gateway', (
+  testWidgets('online setup requires consent and a complete config', (
     tester,
   ) async {
+    _useTallViewport(tester);
     await tester.pumpWidget(
       const MaterialApp(home: Scaffold(body: AssistantSettingsDialog())),
     );
     expect(
       tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, '启用在线助手'))
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '保存'))
           .onPressed,
       isNull,
     );
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('启用在线助手'));
+    await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('请输入完整的网关地址'), findsOneWidget);
+    // 地址不完整时就地报错，不会存下一条用不了的配置。
+    //
+    // 对话框现在只收「我自己的模型」——网关模式已从表单移除（网关本身也已废弃），
+    // 所以这里是模型服务地址的校验消息，不再是「请输入完整的网关地址」。
+    // 空地址在构造函数的初始化列表里就被拦下，早于 API Key / 模型名的检查。
+    expect(find.textContaining('请输入完整的模型服务地址'), findsOneWidget);
   });
 
   testWidgets(
@@ -224,15 +326,16 @@ void main() {
         ),
       );
       expect(find.text('在线'), findsOneWidget);
+      // 在线时必须随时看得到发送边界，而不是只在设置页里写一次。
+      expect(find.textContaining('不发送原始记录、设备标识或历史对话'), findsOneWidget);
       await tester.tap(find.widgetWithText(ActionChip, '今天用了几次？'));
       await tester.pumpAndSettle();
       expect(find.textContaining('在线助手响应超时'), findsOneWidget);
-      await tester.tap(find.byTooltip('回答方式'));
+      // 分段控件里选「本地」即切回本地摘要。
+      await tester.tap(find.text('本地'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('本地摘要'));
-      await tester.pumpAndSettle();
-      expect(find.text('本地'), findsOneWidget);
       expect(find.text('已切回本地摘要，不联网。'), findsOneWidget);
+      expect(find.textContaining('不发送原始记录、设备标识或历史对话'), findsNothing);
     },
   );
 }

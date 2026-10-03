@@ -13,12 +13,17 @@ dependencies:
   flutter_reactive_ble: 5.5.0
   permission_handler: ^12.0.1
   shared_preferences: ^2.5.3
+  # 只用于在线助手的凭据（网关访问码 / 用户自己的模型 Key）。
+  # shared_preferences 是明文，不能用来存这些。
+  flutter_secure_storage: ^9.2.2
   flutter_localizations:
     sdk: flutter
   sqflite: ^2.4.2
   path: ^1.9.1
   path_provider: ^2.1.5
   share_plus: ^10.1.4
+  # 朗读助手回答：Android 系统 TTS，离线、语音不出手机。
+  flutter_tts: ^4.0.2
 
 dev_dependencies:
   flutter_test:

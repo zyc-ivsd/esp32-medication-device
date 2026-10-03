@@ -2,6 +2,8 @@
 
 当前代码在本地分支 `codex/android-xiaozhi-prep`，App 版本 `0.3.0+3`。团队只交付 Android；iOS 代码保留，自动 CI 停止。团队已把小智目标从自建服务调整为官方云；现有 Android 代码尚未连接官方云。
 
+> **2026-09-30 更新：小智路线（自建 + 官方云）已整体放弃。** 在线助手的 forward 路线锁定为 **App 直连用户自己的模型（BYOK）**——API Key 只能是用户自己的、加密保存在手机（`flutter_secure_storage`），调用时直接发送给所选模型服务、不经过团队服务器。下面派发表里第 2/3/4 项（核对官方云激活、开发官方 Provider）不再排期；在线能力已由 `DirectLlmAssistantProvider` 直连实现，并补了设备端 RAG 检索与朗读。规则见 [`assistant-model-access.md`](assistant-model-access.md)。
+
 ## 本轮已经补齐
 
 - Android 主 manifest 的联网权限；本地 / 在线助手切换，发送问题与摘要前确认。
@@ -10,6 +12,17 @@
 - 网络与协议测试；Android CI；更新当前说明并标记旧 iOS / 双平台计划为历史。
 
 这些是代码与自动化能力，不代表 Android 真机、真实小智模型或整机链路已经验收。
+
+## App 侧本地规则助手（2026-09-29）
+
+已在 `codex/android-xiaozhi-prep` 上完成，并经 CI 验证（analyze 0 issue、65 项测试、debug APK 构建通过）：
+
+- 助手摘要从 5 个汇总计数扩展为**总数 + 近 7 天逐日序列**，因此能回答“哪几天没有记录”“分布是否均匀”这类问题。契约见 [`protocol/xiaozhi-bridge.md`](../protocol/xiaozhi-bridge.md)，网关侧强制校验逐日之和等于 7 天总数。
+- 新增本地规则引擎 `mobile_app/lib/assistant/rules/observation_rules.dart`（9 条观察，分 info / attention 两级）；规则与文案见 [`assistant-local-rules.md`](assistant-local-rules.md)。
+- 概览页新增“需要留意”卡片，与助手**共用同一套规则**；助手页摘要卡片画出逐日次数，快捷问句增加“有什么建议？”。
+- 以上均不联网、不需要账号、不需要设备。
+
+**仍然受限**：助手的输入是**正式记录**（`RecordSummary`），而正式事件帧尚未冻结（见下表第 6 项）。所以目前只有“导入演示数据”时助手才有内容可解释；原型 BLE 时间文本**不会**进入摘要。相关前置条件见 [`assistant-data-requirements.md`](assistant-data-requirements.md)。
 
 ## 接下来按这个顺序派发
 

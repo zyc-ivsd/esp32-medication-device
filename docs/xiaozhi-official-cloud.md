@@ -1,5 +1,22 @@
 # 小智官方云接入：可行性与下一步
 
+> **2026-09-30 更新：小智路线（官方云 + 自建智控台）已整体放弃，本文仅作历史资料。** 在线助手的现行路线是 App 直连用户自己的模型（BYOK），API Key 只能是用户自己的、绝不出手机，见 [`assistant-model-access.md`](assistant-model-access.md)。下面的“可行性”“决策任务”“实施顺序”不再排期。
+
+## 先看结论：三种“用小智”的方式
+
+| 方式 | App 能用吗 | 说明 |
+|---|---|---|
+| **xiaozhi.me 官方云** | ❌ **不能** | 设备激活要求用 ESP32 eFuse 里的 HMAC KEY0 对服务器 challenge 签名，手机算不出来；官方也没有给第三方 App 的聊天 API。详见下文 |
+| **自建 `xinnan-tech/xiaozhi-esp32-server` + 智控台** | ✅ **可以，仓库已支持** | 网关 `GATEWAY_MODE=xiaozhi` 走它的文字路径；**大模型、知识库/RAG、角色设定都在智控台里配**，步骤见 [`server/assistant-gateway/README.md`](../server/assistant-gateway/README.md) |
+| 把 xiaozhi.me 上配好的模型/知识库拿来给自建服务端用 | ❌ 不能 | 配置存放在官方服务器上，两边不互通 |
+
+**所以“在 xiaozhi.me 里配大模型和 RAG 然后给 App 用”做不到；但“在自建智控台里配，然后给 App 用”可以，而且已经实现。**
+
+对齐时必须说清两点：
+
+- **声纹识别对文字路径无效** —— 声纹需要麦克风音频，而 App 只发文字；
+- 官方云那一条即使将来获准，也要先解决设备侧的 eFuse 激活，**不能靠让 App 输入 Token 绕过**。
+
 ## 目标
 
 让其他 iGEM 队伍克隆公开仓库后，使用**各自**的小智官方账号完成可选的文字助手功能；不要求项目维护者长期运维一台服务器。Android 的本地记录、BLE、统计和 CSV 应继续在断网时可用。
@@ -34,8 +51,8 @@
 
 ## App 当前可以做和不能宣称的事
 
-- 可以继续测试本地规则助手和仓库已有的自建网关 mock；二者不依赖官方账号。
-- `server/assistant-gateway/` 是上一阶段的可运行实现，目标服务是社区自建 `xinnan-tech/xiaozhi-esp32-server`，不是官方服务。
+- 可以继续测试本地规则助手；它不依赖网络和账号。
+- `server/assistant-gateway/` 是可运行实现，支持三种上游：`mock`（不调用模型）、`xiaozhi`（社区自建 `xinnan-tech/xiaozhi-esp32-server`）、`llm`（任意 OpenAI 兼容 API）。**三种都不是小智官方服务。**
 - 不要把小智账号密码、开发板 HMAC 密钥、从未确认可分享的设备 Token 放到 App 输入框，也不要让所有参赛队共享一个测试身份。
 - 在官方验证完成前，产品页和 Wiki 应写“官方云接入待确认/未实现”，不能写“已接入官方小智”。
 

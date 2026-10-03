@@ -5,6 +5,7 @@ import 'database/sqlite_record_repository.dart';
 import 'models/medication_record.dart';
 import 'pages/home_page.dart';
 import 'services/record_controller.dart';
+import 'theme/app_theme.dart';
 import 'ble/ble_service.dart';
 import 'ble/ble_status_page.dart';
 
@@ -22,6 +23,7 @@ class _ConnectedApp extends StatefulWidget {
 class _ConnectedAppState extends State<_ConnectedApp>
     with WidgetsBindingObserver {
   final _ble = BleService();
+
   @override
   void initState() {
     super.initState();
@@ -53,11 +55,7 @@ class _ConnectedAppState extends State<_ConnectedApp>
 }
 
 class MedicationDeviceApp extends StatelessWidget {
-  const MedicationDeviceApp({
-    super.key,
-    this.controller,
-    this.connectionBuilder,
-  });
+  const MedicationDeviceApp({super.key, this.controller, this.connectionBuilder});
   final RecordController? controller;
   final DeviceConnectionBuilder? connectionBuilder;
 
@@ -68,15 +66,8 @@ class MedicationDeviceApp extends StatelessWidget {
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff147d79)),
-      scaffoldBackgroundColor: const Color(0xfff5f7f8),
-      useMaterial3: true,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xfff5f7f8),
-        centerTitle: false,
-      ),
-    ),
+    // 只有一套主题（浅色）：外观切换已移除，见 theme/app_theme.dart。
+    theme: buildAppTheme(),
     home: controller == null
         ? _DatabaseLoader(connectionBuilder: connectionBuilder)
         : HomePage(

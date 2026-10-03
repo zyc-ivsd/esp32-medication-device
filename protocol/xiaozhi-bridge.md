@@ -1,8 +1,18 @@
-# Android → 自建小智：文字助手协议 v1
+# Android → 助手网关：文字助手协议 v1
 
-> 本文记录上一阶段自建 `xiaozhi-esp32-server` 的适配方案。团队已改为希望接小智官方云；本文 `/v1/assistant/chat`、自建服务器 WebSocket 不能直接当作官方云 API。官方接入待确认，详见[官方云说明](../docs/xiaozhi-official-cloud.md)。
+> **已废弃（仅作历史资料）。** 自建网关（含 `xiaozhi` / `llm` / `mock` 三种上游）已随小智路线一起放弃；在线助手的现行路线是 App 直连用户自己的模型（BYOK），不再经过本网关。接口与字段记录保留供归档与对比，不再作为交付或验收依据。现行边界见 [`../docs/assistant-model-access.md`](../docs/assistant-model-access.md)。
+>
+> `/v1/assistant/chat` 是**本仓库实现的网关接口**，既不是小智官方 API，也不是任何一个上游提供的 REST API。官方云接入待确认，详见[官方云说明](../docs/xiaozhi-official-cloud.md)。
 
-本轮目标是 `xinnan-tech/xiaozhi-esp32-server`。`POST /v1/assistant/chat` 是**本仓库实现的网关接口**，不是上游提供的 REST API。
+网关有三种上游模式，**App 侧接口完全相同**，切换模式不需要改 App：
+
+| `GATEWAY_MODE` | 上游 | 用途 |
+|---|---|---|
+| `mock` | 无 | 只验证 App → 网关链路；回复明确标记未调用模型 |
+| `xiaozhi` | 自建 `xinnan-tech/xiaozhi-esp32-server` 的 WebSocket | 复用社区语音服务端的知识库与角色设定 |
+| `llm` | **OpenAI 兼容的 `/chat/completions`** | 直连模型 API，不需要部署小智服务端 |
+
+上游凭据（小智 Token 或模型 API Key）**只存在于网关**；App 输入的是另外生成的网关访问码。
 
 ```text
 AssistantPage → AssistantService → GatewayAssistantProvider
@@ -30,6 +40,8 @@ Authorization: Bearer <网关访问码；启用鉴权时必填>
     "invalid_event_count": 1,
     "unknown_time_count": 1,
     "future_time_count": 0,
+    "total_count": 21,
+    "daily_counts": [0, 1, 0, 2, 0, 0, 5],
     "last_sync_at": "2026-09-23T08:00:00Z",
     "is_demo": true
   }
@@ -37,6 +49,8 @@ Authorization: Bearer <网关访问码；启用鉴权时必填>
 ```
 
 所有字段必填，不接受额外字段。问题去空格后 1–1000 字；计数为 0–2147483647 整数，`is_demo` 为布尔值；`last_sync_at` 可为 null，否则为带时区的 ISO 时间。App 输出 UTC。请求上限 16 KiB。
+
+`total_count` 是全部记录条数（含时间未知与未来时间的记录）。`daily_counts` 是**近 7 天逐日使用动作次数，最早一天在前、今天在最后**，必须正好 7 个元素，且**元素之和等于 `last_7_days_count`**；两者不一致时网关返回 400。逐日序列使模型能够回答“哪几天没有记录”“间隔是否波动”这类问题，而不再是只能报总和。
 
 ```json
 {
@@ -47,17 +61,20 @@ Authorization: Bearer <网关访问码；启用鉴权时必填>
 }
 ```
 
-`provider=mock` 明确表示未调用小智，App 会追加演示标记；网关不会在小智失败时退回 mock。小智文本上限 8000 字；App HTTP 响应上限 64 KiB。
+`provider` 取值为 `mock` / `xiaozhi` / `llm`，App 只用它区分展示：`mock` 会追加演示标记，其余原样显示。网关**不会**在真实上游失败时退回 `mock`。上游文本上限 8000 字；App HTTP 响应上限 64 KiB。
 
 | HTTP | 含义 |
 |---|---|
 | 400 / 413 | 参数、JSON 或请求大小错误 |
 | 401 | 网关访问码无效 |
 | 429 | 单实例已有问题在处理；稍后由用户重试 |
+| 500 | 网关内部错误（未预期异常） |
 | 502 | 上游连接、绑定、协议、会话、空回答或中断错误 |
 | 504 | 上游总超时（默认 45 秒）；App 总超时 55 秒 |
 
-错误响应为 `{"error":{"code":"…","message":"…"}}`。App 显示本地固定错误说明，不向用户回显上游内部内容。请求不自动重试，HTTP 重定向不跟随。
+错误响应为 `{"error":{"code":"…","message":"…"},"request_id":"…"}`。**所有**响应（成功与失败、包括 413 与未预期的 500）都带 `request_id`，且同一个请求在成功和失败两条路径上是同一个值——用户报「回答不对」时，管理员能凭它把 App 上看到的内容和服务端日志对上，而不需要用户交出问题原文或摘要。未预期异常一律转成 500 JSON，不会漏出 aiohttp 的 HTML 错误页（App 会把非 JSON 响应报成「格式不正确」，反而掩盖真正的问题）。
+
+App 显示本地固定错误说明，不向用户回显上游内部内容；失败时把 `request_id` 作为「请求编号」显示出来。请求不自动重试，HTTP 重定向不跟随。
 
 ## WebSocket 适配依据
 
@@ -75,6 +92,7 @@ Authorization: Bearer <网关访问码；启用鉴权时必填>
 ## 数据与权限边界
 
 - 只自动发送当前问题与摘要，不发送原始事件、个人蓝牙地址或历史聊天；问题本身可能含用户输入的个人信息。
+- 摘要全部是**聚合计数**：不含原始时间戳、设备标识或单条记录，因此无法从摘要反推具体服药时刻。`daily_counts` 也只是 7 个整数，不含日期标签。
 - 原型 BLE 时间文本在独立库，不纳入正式统计。动作计数不能用于确认实际服药。
 - 上游设备身份、模型密钥和小智 Token 只在服务端；App 输入的是独立网关访问码。
 - 每问新建连接、当前实例最多一个处理中请求。**新连接不等于上游无记忆**：小智可能按设备身份保存历史，部署时须为测试专用身份关闭长期记忆、对话报告和外部工具，确认隔离行为。
