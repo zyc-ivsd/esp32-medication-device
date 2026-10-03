@@ -96,8 +96,13 @@ class AssistantService {
     for (final message in history) {
       if (message.isUser) {
         turns.add((role: 'user', text: message.text));
-      } else if (message.role == ChatRole.assistant && !message.isError) {
-        turns.add((role: 'assistant', text: parseRemoteAnswer(message.text).body));
+      } else if (message.role == ChatRole.assistant &&
+          !message.isError &&
+          !message.isIncomplete) {
+        turns.add((
+          role: 'assistant',
+          text: parseRemoteAnswer(message.text).body,
+        ));
       }
     }
     return relevantTurns(turns, question);
@@ -114,10 +119,13 @@ class AssistantService {
     AssistantContext context, {
     Set<int> extra = const {},
     bool incomplete = false,
+    String? incompleteReason,
   }) {
     final parsed = parseRemoteAnswer(raw);
     // 没确认收完就补一句提醒；回答本身照给。
-    final tail = incomplete ? '\n\n$remoteIncompleteNote' : '';
+    final tail = incomplete
+        ? '\n\n${incompleteReason == null ? remoteIncompleteNote : '（$incompleteReason）'}'
+        : '';
     if (parsed.isKnowledge) {
       // 通用知识回答不参与数字回验：里面的数字（例如「全球约 3 亿人」）本来就不
       // 来自摘要，拿摘要去比对只会把正常回答误判成编造，还得跟一句莫名其妙的提醒。
@@ -128,6 +136,7 @@ class AssistantService {
         text: '$remoteKnowledgeNote\n\n${parsed.body}$tail',
         createdAt: DateTime.now(),
         source: ChatSource.knowledge,
+        isIncomplete: incomplete,
       );
     }
     return ChatMessage(
@@ -141,6 +150,7 @@ class AssistantService {
       ) + tail,
       createdAt: DateTime.now(),
       source: ChatSource.online,
+      isIncomplete: incomplete,
     );
   }
 

@@ -11,12 +11,12 @@ import '../models/assistant_context.dart';
 
 /// 用**用户自己**的 API Key 直连 OpenAI 兼容接口。
 ///
-/// 与 `GatewayAssistantProvider` 的区别：这里没有团队服务器参与，Key 只存在于
-/// 本机内存中，随请求直接发给用户填写的模型服务。因此要区分两类 Key：
+/// 与 `GatewayAssistantProvider` 的区别：这里没有团队服务器参与，Key 由手机
+/// 安全存储加载，随请求直接发给用户填写的模型服务。因此要区分两类 Key：
 ///
 /// - **团队的/共享的 Key**：绝对不允许写进 App、APK、构建参数或仓库；
-/// - **用户自己的 Key**：允许在运行时输入，但只保留在当前页面内存里，
-///   不落盘、不进日志、不上传给团队服务器。
+/// - **用户自己的 Key**：允许在运行时输入，由安全存储保存在手机，
+///   不进日志、不上传给团队服务器。
 ///
 /// 支持两种取回答的方式：整段（[reply]）与流式增量（[replyStream]）。
 /// 页面在在线模式下优先走流式，让文字边出边显示。
@@ -28,7 +28,7 @@ class DirectLlmAssistantProvider
     required String baseUrl,
     required this.apiKey,
     required this.model,
-    this.timeout = const Duration(seconds: 55),
+    this.timeout = const Duration(seconds: 120),
     bool allowLocalHttp = kDebugMode,
   }) : endpoint = validateBaseUrl(baseUrl, allowLocalHttp: allowLocalHttp) {
     // 在构造时报错，设置对话框才能立即提示，而不是等用户按下发送。
@@ -44,10 +44,18 @@ class DirectLlmAssistantProvider
   final Uri endpoint;
   final String apiKey;
   final String model;
+
+  /// 建连、响应头和两次网络数据之间的等待上限，不限制持续输出的总时长。
   final Duration timeout;
 
   static const maxQuestionLength = 1000;
-  static const maxResponseBytes = 64 * 1024;
+
+  /// 正文与传输包装分别限流。SSE 每个 token 都可能重复大量 JSON 字段，
+  /// 不能再用 64 KB 的整包限制误伤普通长回答。
+  static const maxAnswerBytes = 256 * 1024;
+  static const maxResponseBytes = 2 * 1024 * 1024;
+  static const maxStreamBytes = 16 * 1024 * 1024;
+  static const maxSseLineBytes = 1024 * 1024;
   static const _chatPath = '/chat/completions';
 
   /// 只接受 HTTPS（调试版额外允许本机 HTTP），并补齐 `/chat/completions`。
@@ -89,8 +97,7 @@ class DirectLlmAssistantProvider
     }
     final client = HttpClient()..connectionTimeout = timeout;
     try {
-      return await _request(client, trimmed, context, references)
-          .timeout(timeout);
+      return await _request(client, trimmed, context, references);
     } on AssistantException {
       rethrow;
     } on TimeoutException {
@@ -149,7 +156,7 @@ class DirectLlmAssistantProvider
           references,
           history,
           completion,
-        ).timeout(timeout)) {
+        )) {
           if (!aborted && !controller.isClosed) controller.add(chunk);
         }
         if (!controller.isClosed) await controller.close();
@@ -211,7 +218,7 @@ class DirectLlmAssistantProvider
     AssistantContext context,
     List<String> references,
   ) async {
-    final request = await client.postUrl(endpoint);
+    final request = await client.postUrl(endpoint).timeout(timeout);
     request.followRedirects = false;
     request.headers.contentType = ContentType.json;
     request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $apiKey');
@@ -220,7 +227,7 @@ class DirectLlmAssistantProvider
         _body(question, context, references, const [], stream: false),
       ),
     );
-    final response = await request.close();
+    final response = await request.close().timeout(timeout);
     if (response.statusCode != HttpStatus.ok) {
       throw AssistantException(_statusMessage(response.statusCode));
     }
@@ -228,7 +235,7 @@ class DirectLlmAssistantProvider
       throw const AssistantException('模型服务返回格式不正确。');
     }
     final bytes = <int>[];
-    await for (final chunk in response) {
+    await for (final chunk in response.timeout(timeout)) {
       if (bytes.length + chunk.length > maxResponseBytes) {
         throw const AssistantException('模型回复过长，请缩小问题范围后重试。');
       }
@@ -247,7 +254,7 @@ class DirectLlmAssistantProvider
     List<ChatTurn> history,
     StreamCompletion? completion,
   ) async* {
-    final request = await client.postUrl(endpoint);
+    final request = await client.postUrl(endpoint).timeout(timeout);
     request.followRedirects = false;
     request.headers.contentType = ContentType.json;
     request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $apiKey');
@@ -256,7 +263,7 @@ class DirectLlmAssistantProvider
         _body(question, context, references, history, stream: true),
       ),
     );
-    final response = await request.close();
+    final response = await request.close().timeout(timeout);
     if (response.statusCode != HttpStatus.ok) {
       throw AssistantException(_statusMessage(response.statusCode));
     }
@@ -269,13 +276,16 @@ class DirectLlmAssistantProvider
     }
     // 不支持流式：整段 JSON 兜底。
     final bytes = <int>[];
-    await for (final chunk in response) {
+    await for (final chunk in response.timeout(timeout)) {
       if (bytes.length + chunk.length > maxResponseBytes) {
         throw const AssistantException('模型回复过长，请缩小问题范围后重试。');
       }
       bytes.addAll(chunk);
     }
-    yield _extractAnswer(jsonDecode(utf8.decode(bytes)));
+    yield _extractAnswer(
+      jsonDecode(utf8.decode(bytes)),
+      completion: completion,
+    );
   }
 
   /// 把 SSE 流切成「data: …」行，逐行抽 `choices[0].delta.content`。
@@ -293,41 +303,55 @@ class DirectLlmAssistantProvider
   ) async* {
     var buffer = <int>[];
     var total = 0;
-    var sawDone = false;
-    await for (final chunk in response) {
+    var answerBytes = 0;
+    // 按网络活动计时：心跳和 reasoning_content 都证明连接仍在工作，
+    // 即使暂时没有可显示的 content，也不应触发「响应超时」。
+    await for (final chunk in response.timeout(timeout)) {
       total += chunk.length;
-      if (total > maxResponseBytes) {
-        throw const AssistantException('模型回复过长，请缩小问题范围后重试。');
+      if (total > maxStreamBytes) {
+        throw const AssistantException('模型响应数据超过单次接收上限，请分段提问。');
       }
       buffer.addAll(chunk);
       var newline = buffer.indexOf(0x0A);
       while (newline >= 0) {
+        if (newline > maxSseLineBytes) {
+          throw const AssistantException('模型服务返回的数据包过大，请重试。');
+        }
         final line = utf8.decode(
           buffer.sublist(0, newline),
           allowMalformed: true,
         );
         buffer = buffer.sublist(newline + 1);
         if (_isDoneLine(line)) {
-          sawDone = true;
+          return;
         } else {
-          final content = _sseDelta(line);
-          if (content != null && content.isNotEmpty) yield content;
+          final content = _sseDelta(line, completion);
+          if (content != null && content.isNotEmpty) {
+            answerBytes += utf8.encode(content).length;
+            _checkAnswerSize(answerBytes);
+            yield content;
+          }
         }
         newline = buffer.indexOf(0x0A);
+      }
+      if (buffer.length > maxSseLineBytes) {
+        throw const AssistantException('模型服务返回的数据包过大，请重试。');
       }
     }
     if (buffer.isNotEmpty) {
       final line = utf8.decode(buffer, allowMalformed: true);
       if (_isDoneLine(line)) {
-        sawDone = true;
+        return;
       } else {
-        final content = _sseDelta(line);
-        if (content != null && content.isNotEmpty) yield content;
+        final content = _sseDelta(line, completion);
+        if (content != null && content.isNotEmpty) {
+          answerBytes += utf8.encode(content).length;
+          _checkAnswerSize(answerBytes);
+          yield content;
+        }
       }
     }
-    if (!sawDone && completion != null) {
-      completion.isComplete = false;
-    }
+    completion?.markIncomplete();
   }
 
   /// 一行是不是 SSE 的结束哨兵 `data: [DONE]`。
@@ -338,7 +362,7 @@ class DirectLlmAssistantProvider
   }
 
   /// 从一行 SSE 里取增量文字；不是数据行、`[DONE]` 或解析不了就返回 null。
-  static String? _sseDelta(String line) {
+  static String? _sseDelta(String line, StreamCompletion? completion) {
     final trimmed = line.trim();
     if (trimmed.isEmpty || !trimmed.startsWith('data:')) return null;
     final payload = trimmed.substring('data:'.length).trim();
@@ -355,7 +379,10 @@ class DirectLlmAssistantProvider
       if (choices is! List || choices.isEmpty || choices.first is! Map) {
         return null;
       }
-      final delta = (choices.first as Map)['delta'];
+      final choice = choices.first as Map;
+      final reason = _incompleteReason(choice['finish_reason']);
+      if (reason != null) completion?.markIncomplete(reason);
+      final delta = choice['delta'];
       if (delta is! Map) return null;
       final content = delta['content'];
       return content is String ? content : null;
@@ -372,7 +399,22 @@ class DirectLlmAssistantProvider
     _ => '模型服务暂时不可用，请稍后重试或切回本地规则。',
   };
 
-  static String _extractAnswer(dynamic data) {
+  static void _checkAnswerSize(int bytes) {
+    if (bytes > maxAnswerBytes) {
+      throw const AssistantException('回答超过单次接收上限，请分段提问。');
+    }
+  }
+
+  /// 正常关闭传输与模型完整回答是两件事。输出额度耗尽时仍可能收到 [DONE]。
+  static String? _incompleteReason(Object? finishReason) =>
+      switch (finishReason) {
+        null || 'stop' => null,
+        'length' => '模型服务已达到本次输出上限，回答未完成，请分段提问或重试。',
+        'content_filter' => '模型服务因内容限制停止了回答，回答未完成，请调整问题后重试。',
+        _ => '模型服务提前停止了回答，回答未完成，请重试。',
+      };
+
+  static String _extractAnswer(dynamic data, {StreamCompletion? completion}) {
     if (data is! Map<String, dynamic>) {
       throw const AssistantException('模型服务返回格式不正确。');
     }
@@ -384,6 +426,15 @@ class DirectLlmAssistantProvider
     final content = message is Map ? message['content'] : null;
     if (content is! String || content.trim().isEmpty) {
       throw const AssistantException('模型服务没有返回文字。');
+    }
+    _checkAnswerSize(utf8.encode(content).length);
+    final reason = _incompleteReason((choices.first as Map)['finish_reason']);
+    if (reason != null) {
+      if (completion != null) {
+        completion.markIncomplete(reason);
+      } else {
+        return '${content.trim()}\n\n（$reason）';
+      }
     }
     return content.trim();
   }

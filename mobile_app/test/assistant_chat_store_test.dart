@@ -32,6 +32,23 @@ void main() {
     expect(ChatMessage.fromJson({'role': 'user', 'text': ''}), isNull);
   });
 
+  test('部分回答的状态在保存、读取和反馈后仍然保留，旧存档默认完整', () {
+    final partial = ChatMessage(
+      role: ChatRole.assistant,
+      text: '回答的前半段。',
+      createdAt: DateTime(2026, 10, 3),
+      source: ChatSource.online,
+      isIncomplete: true,
+    );
+    final restored = ChatMessage.fromJson(partial.toJson())!;
+    expect(restored.isIncomplete, isTrue);
+    expect(restored.copyWith(feedback: ChatFeedback.up).isIncomplete, isTrue);
+    expect(
+      ChatMessage.fromJson({'role': 'assistant', 'text': '旧回答'})!.isIncomplete,
+      isFalse,
+    );
+  });
+
   test('时间戳或来源认不出来时，消息本身仍然保留', () {
     final kept = ChatMessage.fromJson({
       'role': 'system',

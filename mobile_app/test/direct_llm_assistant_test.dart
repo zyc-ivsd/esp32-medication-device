@@ -183,35 +183,40 @@ void main() {
     );
   });
 
-  test('malformed, empty and oversized answers fail without a fallback',
-      () async {
-    for (final body in [
-      'not json',
-      '{"choices":[]}',
-      '{"choices":[{"message":{"content":"   "}}]}',
-      jsonEncode({
-        'choices': [
-          {
-            'message': {'content': 'x' * 66000},
+  test(
+    'malformed, empty and oversized answers fail without a fallback',
+    () async {
+      for (final body in [
+        'not json',
+        '{"choices":[]}',
+        '{"choices":[{"message":{"content":"   "}}]}',
+        jsonEncode({
+          'choices': [
+            {
+              'message': {
+                'content':
+                    'x' * (DirectLlmAssistantProvider.maxAnswerBytes + 1),
+              },
+            },
+          ],
+        }),
+      ]) {
+        await withServer(
+          (request) async {
+            request.response.headers.contentType = ContentType.json;
+            request.response.write(body);
+            await request.response.close();
           },
-        ],
-      }),
-    ]) {
-      await withServer(
-        (request) async {
-          request.response.headers.contentType = ContentType.json;
-          request.response.write(body);
-          await request.response.close();
-        },
-        (baseUrl) async {
-          await expectLater(
-            providerFor(baseUrl).reply(question: '次数？', context: context),
-            throwsA(isA<AssistantException>()),
-          );
-        },
-      );
-    }
-  });
+          (baseUrl) async {
+            await expectLater(
+              providerFor(baseUrl).reply(question: '次数？', context: context),
+              throwsA(isA<AssistantException>()),
+            );
+          },
+        );
+      }
+    },
+  );
 
   test('streaming parses SSE data lines into ordered chunks', () async {
     await withServer(
@@ -236,6 +241,253 @@ void main() {
       },
     );
   });
+
+  test(
+    'a normal long SSE answer can exceed 64 KB of protocol traffic',
+    () async {
+      final answer = '记录说明。' * 1000;
+      final wire = StringBuffer();
+      for (final rune in answer.runes) {
+        wire.write(
+          'data: ${jsonEncode({
+            'id': 'chatcmpl-loopback-long-answer',
+            'model': 'user-model',
+            'choices': [
+              {
+                'index': 0,
+                'delta': {'content': String.fromCharCode(rune)},
+              },
+            ],
+          })}\n\n',
+        );
+      }
+      wire.write('data: [DONE]\n\n');
+      expect(utf8.encode(wire.toString()).length, greaterThan(64 * 1024));
+      await withServer(
+        (request) async {
+          await request.drain<void>();
+          request.response.headers.contentType = ContentType(
+            'text',
+            'event-stream',
+            charset: 'utf-8',
+          );
+          request.response.write(wire);
+          await request.response.close();
+        },
+        (baseUrl) async {
+          final completion = StreamCompletion();
+          final received = await providerFor(baseUrl)
+              .replyStream(
+                question: '详细说明记录',
+                context: context,
+                completion: completion,
+              )
+              .join();
+          expect(received, answer);
+          expect(completion.isComplete, isTrue);
+        },
+      );
+    },
+  );
+
+  test('a JSON answer longer than the old 64 KB cap is accepted', () async {
+    final answer = '长回答内容。' * 5000;
+    await withServer(
+      (request) async {
+        await request.drain<void>();
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'choices': [
+              {
+                'message': {'content': answer},
+                'finish_reason': 'stop',
+              },
+            ],
+          }),
+        );
+        await request.response.close();
+      },
+      (baseUrl) async {
+        expect(
+          await providerFor(baseUrl).reply(question: '详细说明', context: context),
+          answer,
+        );
+      },
+    );
+  });
+
+  for (final fallbackJson in [false, true]) {
+    test(
+      'output length termination stays incomplete even with DONE (JSON=$fallbackJson)',
+      () async {
+        await withServer(
+          (request) async {
+            await request.drain<void>();
+            request.response.headers.contentType = fallbackJson
+                ? ContentType.json
+                : ContentType('text', 'event-stream', charset: 'utf-8');
+            if (fallbackJson) {
+              request.response.write(
+                jsonEncode({
+                  'choices': [
+                    {
+                      'message': {'content': '回答的开头'},
+                      'finish_reason': 'length',
+                    },
+                  ],
+                }),
+              );
+            } else {
+              request.response.write(
+                'data: {"choices":[{"delta":{"content":"回答的开头"}}]}\n\n',
+              );
+              request.response.write(
+                'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\n',
+              );
+              request.response.write('data: [DONE]\n\n');
+            }
+            await request.response.close();
+          },
+          (baseUrl) async {
+            final completion = StreamCompletion();
+            expect(
+              await providerFor(baseUrl)
+                  .replyStream(
+                    question: '详细说明',
+                    context: context,
+                    completion: completion,
+                  )
+                  .join(),
+              '回答的开头',
+            );
+            expect(completion.isComplete, isFalse);
+          },
+        );
+      },
+    );
+  }
+
+  test('keep-alive and reasoning packets reset network idle timeout', () async {
+    await withServer(
+      (request) async {
+        await request.drain<void>();
+        request.response.headers.contentType = ContentType(
+          'text',
+          'event-stream',
+          charset: 'utf-8',
+        );
+        request.response.bufferOutput = false;
+        for (var i = 0; i < 20; i++) {
+          request.response.write(
+            i.isEven
+                ? ': keep-alive\n\n'
+                : 'data: {"choices":[{"delta":{"reasoning_content":"thinking"}}]}\n\n',
+          );
+          await request.response.flush();
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        request.response.write(
+          'data: {"choices":[{"delta":{"content":"完整回答"}}]}\n\n',
+        );
+        request.response.write('data: [DONE]\n\n');
+        await request.response.close();
+      },
+      (baseUrl) async {
+        final provider = DirectLlmAssistantProvider(
+          baseUrl: baseUrl,
+          apiKey: 'user-private-key',
+          model: 'user-model',
+          timeout: const Duration(seconds: 1),
+        );
+        expect(
+          await provider.replyStream(question: '说明', context: context).join(),
+          '完整回答',
+        );
+      },
+    );
+  });
+
+  test('a stalled network still times out with a sanitized error', () async {
+    await withServer(
+      (request) async {
+        await request.drain<void>();
+        request.response.headers.contentType = ContentType(
+          'text',
+          'event-stream',
+          charset: 'utf-8',
+        );
+        request.response.bufferOutput = false;
+        request.response.write('data: {"choices":[{"delta":{"content":"已收到正文"}}]}\n\n');
+        await request.response.flush();
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        await request.response.close();
+      },
+      (baseUrl) async {
+        final provider = DirectLlmAssistantProvider(
+          baseUrl: baseUrl,
+          apiKey: 'user-private-key',
+          model: 'user-model',
+          timeout: const Duration(milliseconds: 300),
+        );
+        final received = <String>[];
+        try {
+          await for (final text in provider.replyStream(question: '说明', context: context)) {
+            received.add(text);
+          }
+          fail('A stalled response must time out.');
+        } on AssistantException catch (error) {
+          expect(received, ['已收到正文']);
+          expect(error.message, contains('超时'));
+          expect(error.message, isNot(contains('user-private-key')));
+        }
+      },
+    );
+  });
+
+  test(
+    'a huge content delta still stops after preserving previous chunks',
+    () async {
+      await withServer(
+        (request) async {
+          await request.drain<void>();
+          request.response.headers.contentType = ContentType(
+            'text',
+            'event-stream',
+            charset: 'utf-8',
+          );
+          request.response.write(
+            'data: {"choices":[{"delta":{"content":"已经收到"}}]}\n\n',
+          );
+          request.response.write(
+            'data: ${jsonEncode({
+              'choices': [
+                {
+                  'delta': {'content': 'x' * DirectLlmAssistantProvider.maxAnswerBytes},
+                },
+              ],
+            })}\n\n',
+          );
+          await request.response.close();
+        },
+        (baseUrl) async {
+          final received = <String>[];
+          try {
+            await for (final text in providerFor(
+              baseUrl,
+            ).replyStream(question: '说明', context: context)) {
+              received.add(text);
+            }
+            fail('A bounded client must reject excessive answer content.');
+          } on AssistantException catch (error) {
+            expect(received, ['已经收到']);
+            expect(error.message, contains('接收上限'));
+            expect(error.message, isNot(contains('user-private-key')));
+          }
+        },
+      );
+    },
+  );
 
   test('SSE 流没收到 [DONE]：留着已收到的内容，只标记「没确认收完」', () async {
     await withServer(

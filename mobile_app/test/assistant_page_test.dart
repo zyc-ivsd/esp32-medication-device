@@ -227,6 +227,9 @@ class _ManualStreamProvider implements StreamingAssistantProvider {
 
 /// 服务端不发结束标记就断流的在线 provider：回答要保留，只在末尾提示「可能不完整」。
 class _IncompleteStreamProvider implements StreamingAssistantProvider {
+  _IncompleteStreamProvider({this.reason});
+
+  final String? reason;
   @override
   Future<String> reply({
     required String question,
@@ -244,7 +247,7 @@ class _IncompleteStreamProvider implements StreamingAssistantProvider {
   }) async* {
     yield '今天使用 2 次。';
     // 模拟流正常关闭、但没收到 `data: [DONE]`。
-    if (completion != null) completion.isComplete = false;
+    completion?.markIncomplete(reason);
   }
 }
 
@@ -286,6 +289,7 @@ class _SlowAnswer implements AssistantProvider {
 
 /// 流式输出中途抛错的在线 provider：观察半截回答不会被落成完整回答。
 class _FailMidStreamProvider implements StreamingAssistantProvider {
+  List<ChatTurn> lastHistory = const [];
   @override
   Future<String> reply({
     required String question,
@@ -301,6 +305,7 @@ class _FailMidStreamProvider implements StreamingAssistantProvider {
     List<ChatTurn> history = const [],
     StreamCompletion? completion,
   }) async* {
+    lastHistory = List.of(history);
     yield '半截回答内容';
     throw const AssistantException('模型回答中途中断，回答未完成，请重试。');
   }
@@ -987,9 +992,16 @@ void main() {
     expect(find.textContaining('今天使用 2 次。'), findsNothing);
   });
 
-  testWidgets('流式中途报错不落成回答，给「回答未完成」与重试入口', (tester) async {
+  testWidgets('流式中途报错保留正文，存为未完成且不自动朗读', (tester) async {
+    final chats = _MemoryChatStore();
+    final speaker = _MemorySpeaker();
     await _pump(
       tester,
+      chats: chats,
+      speaker: speaker,
+      settingsStore: _MemorySettingsStore(
+        const AssistantSettings(autoSpeak: true),
+      ),
       service: AssistantService(
         provider: _FailMidStreamProvider(),
         isRemote: true,
@@ -1002,8 +1014,30 @@ void main() {
 
     expect(find.textContaining('回答未完成'), findsOneWidget);
     expect(find.text('上次回答失败，点这里重试'), findsOneWidget);
-    // 半截回答没有落成一条正常回答。
-    expect(find.textContaining('半截回答内容'), findsNothing);
+    expect(find.textContaining('半截回答内容'), findsOneWidget);
+    final partial = chats.saved.singleWhere((m) => m.text.contains('半截回答内容'));
+    expect(partial.isIncomplete, isTrue);
+    expect(partial.text, contains('回答未完成'));
+    expect(speaker.spoken, isEmpty);
+  });
+
+  testWidgets('保留的半截回答不会回灌到下一轮模型上下文', (tester) async {
+    final provider = _FailMidStreamProvider();
+    await _pump(
+      tester,
+      service: AssistantService(provider: provider, isRemote: true),
+      settingsStore: _MemorySettingsStore(
+        const AssistantSettings(sendHistory: true),
+      ),
+      size: const Size(420, 1400),
+    );
+    await _ask(tester, '今天用了几次？');
+    await _ask(tester, '那昨天呢？');
+    expect(provider.lastHistory, isNotEmpty);
+    expect(
+      provider.lastHistory.every((turn) => !turn.text.contains('半截回答内容')),
+      isTrue,
+    );
   });
 
   testWidgets('点「停止」会真的取消订阅，而不是等下一个 chunk 才发现', (tester) async {
@@ -1114,5 +1148,22 @@ void main() {
       provider.lastHistory.any((turn) => turn.text.contains('今天用了几次')),
       isTrue,
     );
+  });
+
+  testWidgets('模型输出截断时保留回答，并显示明确原因与重试入口', (tester) async {
+    final chats = _MemoryChatStore();
+    await _pump(tester,
+      chats: chats,
+      service: AssistantService(
+        provider: _IncompleteStreamProvider(reason: '模型服务已达到本次输出上限，回答未完成，请分段提问或重试。'),
+        isRemote: true,
+      ),
+      size: const Size(420, 1400),
+    );
+    await _ask(tester, '今天用了几次？');
+    expect(find.textContaining('今天使用 2 次'), findsOneWidget);
+    expect(find.textContaining('输出上限'), findsOneWidget);
+    expect(find.text('上次回答失败，点这里重试'), findsOneWidget);
+    expect(chats.saved.singleWhere((m) => m.text.contains('输出上限')).isIncomplete, isTrue);
   });
 }

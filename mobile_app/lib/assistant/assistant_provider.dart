@@ -25,8 +25,16 @@ abstract class AssistantProvider {
 /// 哨兵就把回答丢掉；可也无法据此确认收全了。用这个对象把「没确认收完」带回给
 /// 页面，由页面在回答末尾如实提醒用户，而不是默默当成完整回答。
 class StreamCompletion {
-  /// 是否确认收完：收到了 `[DONE]`，或服务端不支持流式、改回整段 JSON。
+  /// 是否确认收完。`[DONE]` 不代表回答完整：`finish_reason=length` 仍是截断。
   bool isComplete = true;
+
+  /// 固定提示，说明服务端为何提前停止；不包含上游错误体或凭据。
+  String? incompleteReason;
+
+  void markIncomplete([String? reason]) {
+    isComplete = false;
+    incompleteReason ??= reason;
+  }
 }
 
 /// 支持增量流式输出的在线 provider（目前只有直连用户模型的实现）。

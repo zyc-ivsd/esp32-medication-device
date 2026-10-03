@@ -234,7 +234,7 @@ class _AssistantPageState extends State<AssistantPage> {
 
   /// 开了自动朗读就播最新回答；不 await，别让朗读卡住界面。
   void _maybeAutoSpeak(ChatMessage message) {
-    if (!_autoSpeak) return;
+    if (!_autoSpeak || message.isIncomplete || message.isError) return;
     unawaited(_speak(message));
   }
 
@@ -370,8 +370,8 @@ class _AssistantPageState extends State<AssistantPage> {
   /// 或离开页面时**立刻取消订阅**，底层连接才会真的断掉。`await for` 只能在下一个
   /// chunk 到达时才发现该退出了，请求卡住时等于没取消。
   ///
-  /// 错误不在这里吞掉，抛给 `_send` 的 catch 统一转成固定文案气泡——这样流式
-  /// 与非流式的失败路径长得一模一样，也不会回显 Key 或上游响应体。
+  /// 中途报错时保留已经收到的正文，并明确标为未完成；还没收到正文的错误
+  /// 交给 `_send` 的 catch。取消、清空和离开页面仍丢弃迟到的结果。
   Future<void> _streamAnswer(
     String question,
     AssistantContext latestContext,
@@ -410,8 +410,11 @@ class _AssistantPageState extends State<AssistantPage> {
       await subscription.cancel();
       if (!finished.isCompleted) finished.complete();
     };
+    Object? interruption;
     try {
       await finished.future;
+    } catch (error) {
+      interruption = error;
     } finally {
       _abortStream = null;
     }
@@ -419,15 +422,26 @@ class _AssistantPageState extends State<AssistantPage> {
     if (!mounted || generation != _requestGeneration) return;
     final raw = buffer.toString().trim();
     if (raw.isEmpty) {
+      if (interruption != null) throw interruption;
       throw const AssistantException('模型服务没有返回文字。');
     }
+    final incomplete = interruption != null || !result.completion.isComplete;
+    final incompleteReason = interruption == null
+        ? result.completion.incompleteReason
+        : '${interruption is AssistantException ? interruption.message : '模型连接中断，请重试。'}'
+              ' 已保留收到的内容，回答未完成。';
     final message = _service.finalizeRemote(
       raw,
       latestContext,
       extra: result.referenceNumbers,
       // 服务端没发结束标记：回答照给，末尾补一句「可能不完整」。
-      incomplete: !result.completion.isComplete,
+      incomplete: incomplete,
+      incompleteReason: incompleteReason,
     );
+    // 明确的中断或输出截断给重试入口；只缺结束哨兵的旧服务仍保留原有行为。
+    if (interruption != null || result.completion.incompleteReason != null) {
+      _failedQuestion = question;
+    }
     setState(() {
       _messages.add(message);
       _streaming = false;

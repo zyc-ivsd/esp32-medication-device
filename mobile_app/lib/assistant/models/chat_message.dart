@@ -26,6 +26,7 @@ class ChatMessage {
     this.source,
     this.feedback = ChatFeedback.none,
     this.isError = false,
+    this.isIncomplete = false,
   });
 
   final ChatRole role;
@@ -44,6 +45,9 @@ class ChatMessage {
   /// 自己上一条失败提示，当成已经答过的内容（见 `AssistantService._toTurns`）。
   final bool isError;
 
+  /// 已收到的部分回答。保留供用户查看，但不能当作完整回答发进下一轮上下文。
+  final bool isIncomplete;
+
   bool get isUser => role == ChatRole.user;
 
   /// 分隔提示，渲染成居中淡色小字而不是气泡。
@@ -57,6 +61,7 @@ class ChatMessage {
     source: source,
     feedback: feedback ?? this.feedback,
     isError: isError,
+    isIncomplete: isIncomplete,
   );
 
   Map<String, dynamic> toJson() => {
@@ -66,6 +71,7 @@ class ChatMessage {
     'source': source?.name,
     // 只在失败提示上写，正常回答不带这个字段，存档保持紧凑。
     if (isError) 'error': true,
+    if (isIncomplete) 'incomplete': true,
   };
 
   /// 解析一条存档消息；认不出来就返回 null，由调用方跳过。
@@ -98,6 +104,7 @@ class ChatMessage {
       },
       // 老存档没有这个字段，认不出就是正常回答。
       isError: data['error'] == true,
+      isIncomplete: data['incomplete'] == true,
     );
   }
 }
