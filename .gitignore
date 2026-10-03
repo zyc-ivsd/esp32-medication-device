@@ -9,6 +9,7 @@ pubspec_overrides.yaml
 
 # Android / iOS generated files
 **/.gradle/
+**/.kotlin/
 **/local.properties
 **/Generated.xcconfig
 **/Flutter/ephemeral/
