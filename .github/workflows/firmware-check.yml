@@ -27,6 +27,13 @@ jobs:
           mkdir -p build/firmware-validation
           g++ -std=c++11 -Wall -Wextra -Werror firmware/esp32-c3/tests/clock_command_test.cpp -o build/clock-test
           build/clock-test | tee build/firmware-validation/clock-test.txt
+      - name: Test BLE subscription callbacks
+        run: |
+          set -euo pipefail
+          for stack in NIMBLE BLUEDROID; do
+            g++ -std=c++11 -Wall -Wextra -Werror -DCONFIG_${stack}_ENABLED=1 -Ifirmware/esp32-c3/tests/stubs firmware/esp32-c3/tests/ble_subscription_test.cpp -o build/ble-subscription-test
+            build/ble-subscription-test | tee "build/firmware-validation/ble-${stack}.txt"
+          done
       - uses: arduino/setup-arduino-cli@v2
         with:
           version: '1.3.1'

@@ -36,9 +36,6 @@ uint16_t textCrc(const String &body) {
   }
   return crc;
 }
-bool notifyReady() {
-  return deviceConnected && notifyDescriptor && notifyDescriptor->getNotifications();
-}
 bool sendFrame(const String &body) {
   if (!notifyReady()) return false;
   const uint32_t generation = connectionGeneration;
@@ -169,7 +166,11 @@ void beginSync(const String &token) {
 }
 void handleCommand(const String &command) {
   Serial.println("CONTROL " + command);
-  if (command == "HELLO") { helloPending = true; return; }
+  if (command == "HELLO") {
+    helloPending = true;
+    if (!notifyReady()) Serial.println("HELLO_WAIT_NOTIFY: phone has not enabled notifications yet");
+    return;
+  }
   if (!helloReady || !notifyReady()) return;
   if (command.startsWith("TIME|")) {
     PhoneClockCommand clock;
@@ -221,8 +222,12 @@ void serviceSync() {
       handleCommand(String(command.text));
   }
   if (helloPending && notifyReady()) {
-    helloPending = false;
-    helloReady = sendFrame("READY|" + stableDeviceId + "|P01|TIME1");
+    // A disconnect or subscription change can occur between frame fragments.
+    // Keep HELLO pending until the complete READY has actually been attempted.
+    if (sendFrame("READY|" + stableDeviceId + "|P01|TIME1")) {
+      helloPending = false;
+      helloReady = true;
+    }
   }
   if (syncActive && deviceConnected && millis() - lastFrameAt >= ACK_TIMEOUT_MS) {
     if (retryCount++ >= MAX_RETRIES) { syncError("ACK_TIMEOUT"); return; }

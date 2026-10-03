@@ -14,6 +14,8 @@ Characteristic：`beb5483e-36e1-4688-b7f5-ea07361b26a8`，Read / Write With Resp
 CRC-16/CCITT-FALSE：poly `0x1021`、init `0xffff`、refin/refout=false、xorout=0，覆盖 body 的 UTF-8 字节，不含末尾分隔符、校验值或 LF。crc4 为四位十六进制。独立标准校验向量 `123456789 → 29b1`。
 App 发出的控制命令不带 LF，单次 Write With Response，最多 20 字节。
 
+配套固件必须来自 `codex/android-xiaozhi-prep`，当前旧 `main` 没有 HELLO/READY。C3 / Arduino-ESP32 3.3.11 使用 NimBLE，实际订阅以 `onSubscribe` 的 Notify 位为准；`BLE2902::getNotifications()` 在该栈仅表示特征能力，不能用作客户端已订阅的证据。固件连接时保留 Notify 能力、重置订阅状态，收到 HELLO 后等待订阅，再发 READY。
+
 `token` 为 App 每轮随机生成的 8 位十六进制会话标识。设备 ID 为 12 位 eFuse 芯片标识（与手机系统给出的连接 ID 分开）。`index` 为本轮快照的零起始序号，不是正式事件序号。
 
 | 方向 | body / 控制命令 | 行为 |

@@ -14,14 +14,18 @@ uint32_t lastButtonAt = 0;
 
 bool setupBLE() {
   if (!BLEDevice::init("ESP32-C3")) { Serial.println("BLE_INIT_FAILED"); return false; }
+  Serial.printf("FIRMWARE P01/TIME1 READY_FIX_1; BLE stack=%s\n", BLEDevice::getBLEStackString().c_str());
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(&serverCallbacks);
   pService = pServer->createService(SERVICE_UUID);
   pCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID,
     BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
   pCharacteristic->setCallbacks(&characteristicCallbacks);
+#if defined(CONFIG_BLUEDROID_ENABLED)
   notifyDescriptor = new BLE2902();
   pCharacteristic->addDescriptor(notifyDescriptor);
+#endif
+  // NimBLE creates CCCD automatically; subscription state comes from onSubscribe.
   pService->start();
   BLEAdvertising *advertising = BLEDevice::getAdvertising();
   advertising->addServiceUUID(SERVICE_UUID);
