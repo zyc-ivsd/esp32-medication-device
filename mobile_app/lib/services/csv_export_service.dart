@@ -43,16 +43,16 @@ class CsvExportService {
           source.name,
           _safeText(record.deviceId),
           record.isTimestampRecord ? '' : record.seq,
-          record.isTimestampRecord ? '' : record.timestamp,
-          record.occurredAt?.toIso8601String() ?? '',
           record.isTimestampRecord
               ? (record.hasKnownTime
-                    ? record.rawTimestampText!
-                          .replaceFirst('_', 'T')
-                          .replaceRange(13, 14, ':')
-                          .replaceRange(16, 17, ':')
+                    ? (int.parse(record.rawTimestampText!, radix: 16))
                     : '')
-              : record.localOccurredAt?.toIso8601String() ?? '',
+              : record.timestamp,
+          record.isTimestampRecord
+              ? (parseDeviceTimestamp(record.rawTimestampText!)?.toIso8601String() ??
+                    '')
+              : record.occurredAt?.toIso8601String() ?? '',
+          record.localOccurredAt?.toIso8601String() ?? '',
           record.hasKnownTime ? 'known' : 'unknown',
           record.eventType,
           record.durationMs,
@@ -64,7 +64,8 @@ class CsvExportService {
           record.isTimestampRecord ? 'button_timestamp' : 'structured_event',
           _safeText(record.deviceFileId ?? ''),
           _safeText(record.rawTimestampText ?? ''),
-          record.isTimestampRecord ? 'device_local_offset_unknown' : 'unix_utc',
+          // Both record kinds now carry Unix UTC seconds.
+          'unix_utc',
           record.receivedAt?.toUtc().toIso8601String() ?? '',
         ],
     ];

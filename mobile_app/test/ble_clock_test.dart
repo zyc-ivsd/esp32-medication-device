@@ -47,20 +47,26 @@ void main() {
     await until(() => ble.writes.contains('HELLO'));
     ble.frame('READY|AABBCCDDEEFF|P01${timeCapable ? '|TIME1' : ''}');
     await until(
-      () => ble.writes.any(
-        (w) => w.startsWith(timeCapable ? 'TIME|' : 'SYNC_REQ|'),
-      ),
+      () => ble.writes.any((w) => w.startsWith(timeCapable ? 'TM|' : 'HELLO')),
     );
   }
 
-  String timeCommand() => ble.writes.lastWhere((w) => w.startsWith('TIME|'));
+  /// Device-initiated offer. The app only replies SYNC_REQ after this frame,
+  /// mirroring the firmware sending REQ once the clock is settled.
+  void offerSync([String token = 'a1b2c3d4', int count = 0]) =>
+      ble.frame('REQ|$token|$count');
+
+  String timeCommand() => ble.writes.lastWhere((w) => w.startsWith('TM|'));
   void acknowledgeClock([String? command]) =>
-      ble.frame('TIME_OK|${(command ?? timeCommand()).substring(5)}');
+      ble.frame('TOK|${(command ?? timeCommand()).substring(3)}');
   Future<void> completeEmptySync() async {
+    // The device offers REQ after a confirmed TOK; the app consents.
+    offerSync();
     await until(() => ble.writes.any((w) => w.startsWith('SYNC_REQ|')));
     final token = ble.writes
         .lastWhere((w) => w.startsWith('SYNC_REQ|'))
         .split('|')[1];
+    expect(token, 'a1b2c3d4');
     ble.frame('BEGIN|$token|0');
     await until(() => ble.writes.contains('START|$token'));
     ble.frame('END|$token|0');
@@ -70,21 +76,24 @@ void main() {
   }
 
   test(
-    'TIME1 calibrates with UTC and phone offset before requesting files',
+    'TIME1 calibrates with UTC only, then waits for the device to offer files',
     () async {
       await connect();
-      final expected = (phoneTime.millisecondsSinceEpoch ~/ 1000).toRadixString(
-        16,
-      );
-      expect(timeCommand(), 'TIME|$expected|480');
+      final expected = (phoneTime.millisecondsSinceEpoch ~/ 1000)
+          .toRadixString(16)
+          .padLeft(16, '0');
+      expect(timeCommand(), 'TM|$expected');
       expect(utf8.encode(timeCommand()).length, lessThanOrEqualTo(20));
       expect(service.status, BleConnectionStatus.calibrating);
       expect(service.canSync, false);
+      // The device drives sync, so a user tap while calibrating is ignored.
       await service.requestSync();
-      // A corrupt frame, a wrong offset and an unframed legacy reply are not confirmations.
-      ble.packets.add(utf8.encode('\nTIME_OK|$expected|480|0000\n'));
-      ble.frame('TIME_OK|$expected|0');
-      ble.packets.add(utf8.encode('\nTIME_OK\n'));
+      expect(service.waitingForDeviceRequest, false);
+      // A corrupt frame, an offset-bearing legacy reply and an unframed reply
+      // are not confirmations.
+      ble.packets.add(utf8.encode('\nTOK|$expected|480|0000\n'));
+      ble.frame('TOK|$expected|0');
+      ble.packets.add(utf8.encode('\nTOK\n'));
       await Future<void>.delayed(const Duration(milliseconds: 10));
       expect(ble.writes.where((w) => w.startsWith('SYNC_REQ|')), isEmpty);
       acknowledgeClock();
@@ -96,11 +105,11 @@ void main() {
   );
 
   test(
-    'lost TIME_OK retries then stops without requesting or acknowledging files',
+    'lost TOK retries then stops without requesting or acknowledging files',
     () async {
       await connect();
       await until(() => service.status == BleConnectionStatus.error);
-      expect(ble.writes.where((w) => w.startsWith('TIME|')), hasLength(3));
+      expect(ble.writes.where((w) => w.startsWith('TM|')), hasLength(3));
       expect(
         ble.writes.where(
           (w) => w.startsWith('SYNC_REQ|') || w.startsWith('ACK|'),
@@ -123,7 +132,7 @@ void main() {
       acknowledgeClock(original);
       await completeEmptySync();
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      expect(ble.writes.where((w) => w.startsWith('TIME|')).toList(), [
+      expect(ble.writes.where((w) => w.startsWith('TM|')).toList(), [
         original,
         original,
       ]);
@@ -131,17 +140,19 @@ void main() {
   );
 
   test(
-    'device clock error permits retry and stale TIME_OK cannot complete a new request',
+    'device clock error permits retry and stale TOK cannot complete a new request',
     () async {
       await connect();
       final original = timeCommand();
-      ble.frame('TIME_ERR|CLOCK_STORAGE');
+      ble.frame('TER|CLOCK_STORAGE');
       await until(() => service.clockStatus == ClockCalibrationStatus.failed);
       expect(service.lastError, contains('CLOCK_STORAGE'));
       expect(service.canSync, false);
       phoneTime = OffsetClock(DateTime.utc(2026, 10, 3, 12, 1), -720);
-      await service.requestClockCalibration(syncAfter: true);
-      expect(timeCommand(), endsWith('|-720'));
+      await service.requestClockCalibration();
+      // The offset must not appear on the wire: only UTC hex seconds are sent.
+      expect(timeCommand(), startsWith('TM|'));
+      expect(timeCommand().length, 19); // TM| + 16 hex digits
       acknowledgeClock(original);
       await Future<void>.delayed(const Duration(milliseconds: 10));
       expect(service.clockStatus, ClockCalibrationStatus.pending);
@@ -179,7 +190,7 @@ void main() {
       await until(() => ble.writes.where((w) => w == 'HELLO').length == 2);
       ble.frame('READY|AABBCCDDEEFF|P01|TIME1');
       await until(
-        () => ble.writes.where((w) => w.startsWith('TIME|')).length == 2,
+        () => ble.writes.where((w) => w.startsWith('TM|')).length == 2,
       );
       acknowledgeClock();
       await completeEmptySync();
@@ -195,20 +206,22 @@ void main() {
     await until(() => service.status == BleConnectionStatus.error);
     expect(
       ble.writes.where(
-        (w) => w.startsWith('TIME|') || w.startsWith('SYNC_REQ|'),
+        (w) => w.startsWith('TM|') || w.startsWith('SYNC_REQ|'),
       ),
       isEmpty,
     );
-    expect(service.lastError, contains('Phone date or timezone'));
+    expect(service.lastError, contains('Phone date is out of range'));
   });
 
   test(
     'older P01 firmware still synchronizes with an explicit unsupported clock state',
     () async {
       await connect(timeCapable: false);
-      expect(service.clockStatus, ClockCalibrationStatus.unsupported);
+      await until(
+        () => service.clockStatus == ClockCalibrationStatus.unsupported,
+      );
       expect(service.canCalibrateClock, false);
-      expect(ble.writes.where((w) => w.startsWith('TIME|')), isEmpty);
+      expect(ble.writes.where((w) => w.startsWith('TM|')), isEmpty);
       await completeEmptySync();
     },
   );
@@ -218,18 +231,23 @@ void main() {
     () async {
       await connect();
       acknowledgeClock();
+      // Device offers after TOK; the app consents and starts receiving.
+      offerSync();
       await until(() => service.status == BleConnectionStatus.syncing);
       expect(service.canCalibrateClock, false);
       await service.requestClockCalibration();
-      expect(ble.writes.where((w) => w.startsWith('TIME|')), hasLength(1));
+      expect(ble.writes.where((w) => w.startsWith('TM|')), hasLength(1));
       await completeEmptySync();
+      expect(service.canCalibrateClock, true);
       phoneTime = DateTime.utc(2026, 10, 3, 13);
       await service.requestClockCalibration();
+      expect(ble.writes.where((w) => w.startsWith('TM|')), hasLength(2));
       acknowledgeClock();
       await until(() => service.clockStatus == ClockCalibrationStatus.synced);
       expect(service.status, BleConnectionStatus.ready);
-      expect(ble.writes.where((w) => w.startsWith('SYNC_REQ|')), hasLength(1));
       expect(service.canSync, true);
+      // A calibration-only retry must not start a new transfer by itself.
+      expect(ble.writes.where((w) => w.startsWith('SYNC_REQ|')), hasLength(1));
     },
   );
 }

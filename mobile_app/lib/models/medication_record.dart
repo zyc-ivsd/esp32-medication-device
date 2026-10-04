@@ -85,12 +85,11 @@ class MedicationRecord {
 
   bool get isTimestampRecord => deviceFileId != null;
   bool get hasUnixTime => timestamp != 0;
-  // The wire text carries a wall-clock time, not a UTC offset. Preserve its
-  // calendar fields instead of inventing a UTC instant using today's offset.
-  // For timestamp entries a UTC DateTime carries calendar components only:
-  // callers must not convert it to another timezone or export it as an instant.
+  // Device records carry a UTC instant (hex Unix seconds). Convert to the
+  // phone's current timezone for display; changing the phone timezone only
+  // changes the presentation, not the stored instant.
   DateTime? get localOccurredAt => isTimestampRecord
-      ? parseDeviceTimestamp(rawTimestampText!)
+      ? parseDeviceTimestamp(rawTimestampText!)?.toLocal()
       : occurredAt?.toLocal();
 
   bool get hasKnownTime => localOccurredAt != null;
@@ -156,31 +155,16 @@ class MedicationRecord {
   }
 }
 
-/// Strict calendar validation: DateTime.parse/constructors normalize invalid
-/// dates such as February 31. The firmware's 2000 clock placeholder is excluded.
+/// Parses the device's raw record: 16 lowercase/uppercase hex digits holding
+/// UTC Unix seconds. Returns the UTC instant, or null when the value is
+/// malformed, out of the supported 2001–2099 range, or the firmware's year-2000
+/// placeholder. Callers apply the phone's current timezone offset for display.
 DateTime? parseDeviceTimestamp(String text) {
-  final match = RegExp(
-    r'^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$',
-  ).firstMatch(text);
-  if (match == null) return null;
-  final parts = [for (var i = 1; i <= 6; i++) int.parse(match.group(i)!)];
-  final [year, month, day, hour, minute, second] = parts;
-  if (year <= 2000 ||
-      year > 2099 ||
-      month < 1 ||
-      month > 12 ||
-      day < 1 ||
-      day > 31 ||
-      hour > 23 ||
-      minute > 59 ||
-      second > 59) {
+  if (!RegExp(r'^[0-9A-Fa-f]{16}$').hasMatch(text)) return null;
+  final seconds = int.tryParse(text, radix: 16);
+  if (seconds == null || seconds < 978307200 || seconds > 4102444799) {
+    // 978307200 = 2001-01-01T00:00:00Z; 4102444799 = 2099-12-31T23:59:59Z.
     return null;
   }
-  // Validate in UTC so DST gaps in the phone's timezone cannot normalize a
-  // device's calendar date. This is a calendar carrier, not a UTC instant.
-  final checked = DateTime.utc(year, month, day, hour, minute, second);
-  if (checked.year != year || checked.month != month || checked.day != day) {
-    return null;
-  }
-  return checked;
+  return DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true);
 }

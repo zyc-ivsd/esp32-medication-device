@@ -26,7 +26,7 @@ class GatedStore implements PrototypeStore {
 
 const token = '1234abcd';
 const recordFrame =
-    'R|$token|0|data_2026-08-29_22-30-00_1.txt|2026-08-29_22-30-00';
+    'R|$token|0|data_0000000068b075c0_1.txt|0000000068b075c0';
 List<String> fields(String body) =>
     decodePrototypeFrame(encodePrototypeFrame(body).trim());
 
@@ -197,7 +197,7 @@ void main() {
       final record = PrototypeRecord(
         deviceId: 'AABBCCDDEEFF',
         fileId: 'data_test.txt',
-        rawText: '2026-08-29_22-30-00',
+        rawText: '0000000068b075c0',
         receivedAt: DateTime.utc(2026),
       );
       await store.save(record);

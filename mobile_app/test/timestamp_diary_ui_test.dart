@@ -35,16 +35,21 @@ void main() {
       }
       final repository = MemoryRecords(RecordSource.device);
       final now = DateTime(2026, 10, 4, 12);
+      // Device records are UTC hex seconds; convert local wall-clock fixtures.
+      String hex(DateTime local) =>
+          (local.toUtc().millisecondsSinceEpoch ~/ 1000)
+              .toRadixString(16)
+              .padLeft(16, '0');
       for (final entry in {
-        '1.txt': '2026-10-04_08-30-00',
-        '2.txt': '2026-10-04_10-15-00',
-        '3.txt': '2026-10-03_08-30-00',
+        '1.txt': DateTime(2026, 10, 4, 8, 30),
+        '2.txt': DateTime(2026, 10, 4, 10, 15),
+        '3.txt': DateTime(2026, 10, 3, 8, 30),
       }.entries) {
         repository.rows.add(
           MedicationRecord.deviceTimestamp(
             deviceId: 'AABBCCDDEEFF',
             fileId: entry.key,
-            rawText: entry.value,
+            rawText: hex(entry.value),
             receivedAt: now,
           ),
         );
@@ -97,7 +102,7 @@ void main() {
       await capture('android-history');
       await tester.tap(find.text('Medication use').first);
       await tester.pumpAndSettle();
-      expect(find.textContaining('2026-10-04_08-30-00'), findsOneWidget);
+      expect(find.textContaining(hex(DateTime(2026, 10, 4, 8, 30))), findsOneWidget);
       expect(
         find.textContaining('Not supplied by timestamp-only firmware'),
         findsOneWidget,

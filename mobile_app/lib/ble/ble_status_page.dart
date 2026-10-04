@@ -174,7 +174,7 @@ class _BleStatusPageState extends State<BleStatusPage> {
                 ),
                 OutlinedButton.icon(
                   onPressed: _service.canCalibrateClock
-                      ? () => _service.requestClockCalibration(syncAfter: true)
+                      ? _service.requestClockCalibration
                       : null,
                   icon: const Icon(Icons.schedule),
                   label: const Text('Calibrate clock'),

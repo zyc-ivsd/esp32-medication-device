@@ -4,20 +4,19 @@
 
 int main() {
   PhoneClockCommand result = {};
-  assert(parsePhoneClock("TIME|386d4380|480", result)); // 2000-01-01 UTC
-  assert(result.utc == 946684800U && result.offset == 480);
-  assert(parsePhoneClock("TIME|F48656FF|-840", result)); // last second of 2099
-  assert(result.utc == 4102444799U && result.offset == -840);
-  assert(parsePhoneClock("TIME|386d4380|840", result));
-  assert(parsePhoneClock("TIME|386d4380|0", result));
+  assert(parsePhoneClock("TM|00000000386d4380", result)); // 2000-01-01 UTC
+  assert(result.utc == 946684800U);
+  assert(parsePhoneClock("TM|00000000F48656FF", result)); // last second of 2099
+  assert(result.utc == 4102444799U);
+  assert(parsePhoneClock("TM|00000000f48656ff", result)); // lowercase accepted
   const char *invalid[] = {
-    "TIME|386d437f|0", "TIME|f4865700|0", // out of supported years
-    "TIME|386d4380|841", "TIME|386d4380|-841", // invalid timezones
-    "TIME|386d4380|", "TIME|386d4380|-", "TIME|386d4380|+1",
-    "TIME|386d4380|0junk", "TIME|386d4380|1|2", "TIME|386d4380|1000",
-    "TIME|386d438x|0", "TIME|386d43800|0", "TIME|386d438|0",
-    "TM2026-10-03 12:00:00", "", "TIME|", "TIME"
+    "TM|00000000386d437f", "TM|00000000f4865700", // out of supported years
+    "TM|386d4380", "TM|00000000386d4380|480",     // legacy 8-hex or offset form
+    "TM|00000000386d43800", "TM|00000000386d438",  // wrong length
+    "TM|00000000386d438x", "TM|00000000386d4380junk",
+    "TIME|00000000386d4380",                       // old long prefix is no longer valid
+    "TM2026-10-03 12:00:00", "", "TM|", "TM"
   };
   for (const char *value : invalid) assert(!parsePhoneClock(value, result));
-  puts("Phone clock protocol: UTC bounds, offsets and malformed commands passed");
+  puts("Phone clock protocol: TM UTC-only bounds and malformed commands passed");
 }

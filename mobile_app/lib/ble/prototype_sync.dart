@@ -51,9 +51,9 @@ class PrototypeSync {
             index >= expectedCount! ||
             index > _saved.length ||
             !RegExp(r'^data_[A-Za-z0-9_.-]{1,80}\.txt$').hasMatch(file) ||
-            !RegExp(r'^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$').hasMatch(raw)) {
+            !RegExp(r'^[0-9A-Fa-f]{16}$').hasMatch(raw)) {
           throw const FormatException(
-            'Invalid record index, file name or timestamp format',
+            'Invalid record index, file name or UTC-hex timestamp format',
           );
         }
         final payload = '$file|$raw';

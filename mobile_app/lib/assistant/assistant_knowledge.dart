@@ -114,7 +114,7 @@ const List<KnowledgeChunk> assistantKnowledge = [
     id: 'time.unknown',
     title: 'Why does a record have an unknown time?',
     body:
-        'A missing timestamp, invalid calendar date or the firmware clock placeholder is treated as unknown. '
+        'A missing timestamp, malformed value or the firmware clock placeholder is treated as unknown. '
         'It is kept for review and excluded from daily use counts.',
     keywords: ['时间未知', '未知时间', '没时间', '时间戳'],
   ),
@@ -153,8 +153,8 @@ const List<KnowledgeChunk> assistantKnowledge = [
     id: 'term.daily',
     title: 'How are daily use counts calculated?',
     body:
-        'Each unique device timestamp with a valid date records one use; valid structured use events are also counted. Unknown and future times are excluded. '
-        'The seven daily counts add up to the weekly total. Timestamp files retain their original device calendar date.',
+        'Each unique device timestamp with a valid time records one use; valid structured use events are also counted. Unknown and future times are excluded. '
+        'The seven daily counts add up to the weekly total. Device records are UTC and shown in your phone timezone.',
     keywords: ['逐日', '每天', '口径', '近 7 天', '近7天', '每日'],
   ),
   KnowledgeChunk(

@@ -17,6 +17,15 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'ble_service_test.dart' show FakeBleTransport, MemoryTextStore;
 
 final _now = DateTime(2026, 10, 4, 12);
+
+/// The device now sends 16 hex-digit UTC seconds. Tests express a wall-clock
+/// local time and this helper converts it to the UTC instant the firmware would
+/// record, so assertions stay readable and stable across host timezones.
+String utcHex(DateTime localWallClock) =>
+    (localWallClock.toUtc().millisecondsSinceEpoch ~/ 1000)
+        .toRadixString(16)
+        .padLeft(16, '0');
+
 PrototypeRecord timestamp(
   String text, {
   String file = 'data_test_1.txt',
@@ -46,21 +55,24 @@ void main() {
   sqfliteFfiInit();
 
   test(
-    'strict dates reject normalized dates, clock placeholders and bad times',
+    'device timestamps accept only 16 hex UTC seconds in 2001-2099',
     () {
       for (final raw in [
-        '2026-02-31_08-00-00',
-        '2026-13-01_08-00-00',
-        '2026-10-04_24-00-00',
-        '2026-10-04_08-60-00',
-        '2000-01-01_00-00-05',
-        '2025-02-29_08-00-00',
         'not-a-time',
+        '2026-10-04_08-00-00', // legacy calendar text is no longer valid
+        '00000000386d4380',    // 2000 placeholder is excluded
+        '00000000f4865700',    // beyond 2099
+        '386d4380',            // too short (legacy 8 hex)
+        '00000000386d43800',   // too long
+        '00000000386d438g',    // non-hex digit
+        '',
       ]) {
         expect(parseDeviceTimestamp(raw), isNull, reason: raw);
       }
-      final leap = parseDeviceTimestamp('2024-02-29_08-00-00')!;
-      expect([leap.year, leap.month, leap.day, leap.hour], [2024, 2, 29, 8]);
+      final leap = parseDeviceTimestamp(utcHex(DateTime(2024, 2, 29, 8)))!;
+      expect(leap.isUtc, isTrue);
+      final local = leap.toLocal();
+      expect([local.year, local.month, local.day, local.hour], [2024, 2, 29, 8]);
     },
   );
 
@@ -69,7 +81,7 @@ void main() {
     () async {
       final repo = await open();
       addTearDown(repo.close);
-      final first = timestamp('2026-10-04_08-00-00');
+      final first = timestamp(utcHex(DateTime(2026, 10, 4, 8)));
       await repo.saveDeviceTimestamp(first);
       await repo.saveDeviceTimestamp(
         PrototypeRecord(
@@ -106,14 +118,14 @@ void main() {
     () async {
       final repo = await open();
       addTearDown(repo.close);
-      await repo.saveDeviceTimestamp(timestamp('2026-10-04_08-00-00'));
+      await repo.saveDeviceTimestamp(timestamp(utcHex(DateTime(2026, 10, 4, 8))));
       await expectLater(
-        repo.saveDeviceTimestamp(timestamp('2026-10-04_09-00-00')),
+        repo.saveDeviceTimestamp(timestamp(utcHex(DateTime(2026, 10, 4, 9)))),
         throwsStateError,
       );
       expect(
         (await repo.readAll()).single.rawTimestampText,
-        '2026-10-04_08-00-00',
+        utcHex(DateTime(2026, 10, 4, 8)),
       );
     },
   );
@@ -124,11 +136,10 @@ void main() {
       final repo = await open();
       addTearDown(repo.close);
       for (final (index, raw) in [
-        '2026-10-04_08-00-00',
-        '2000-01-01_00-00-10',
-        '2026-02-31_08-00-00',
-        '2026-10-05_08-00-00',
-        '2026-09-28_08-00-00',
+        utcHex(DateTime(2026, 10, 4, 8)),
+        utcHex(DateTime(2000, 1, 1, 0, 0, 10)),
+        utcHex(DateTime(2026, 10, 5, 8)),
+        utcHex(DateTime(2026, 9, 28, 8)),
       ].indexed) {
         await repo.saveDeviceTimestamp(
           timestamp(raw, file: 'data_test_$index.txt'),
@@ -136,10 +147,10 @@ void main() {
       }
       final records = await repo.readAll();
       final summary = RecordSummary.calculate(records, now: _now);
-      expect(summary.total, 5);
+      expect(summary.total, 4);
       expect(summary.todayCount, 1);
       expect(summary.last7DaysCount, 2);
-      expect(summary.unknownTimeCount, 2);
+      expect(summary.unknownTimeCount, 1);
       expect(summary.futureTimeCount, 1);
       expect(summary.days.map((day) => day.count).reduce((a, b) => a + b), 2);
       final filter = RecordFilter(
@@ -159,7 +170,7 @@ void main() {
     () async {
       final repo = await open();
       addTearDown(repo.close);
-      await repo.saveDeviceTimestamp(timestamp('2026-10-04_08-15-32'));
+      await repo.saveDeviceTimestamp(timestamp(utcHex(DateTime(2026, 10, 4, 8, 15, 32))));
       final csv = CsvExportService.encode(
         await repo.readAll(),
         RecordSource.device,
@@ -175,14 +186,18 @@ void main() {
           .map((cell) => cell.replaceAll('"', ''))
           .toList();
       final row = Map.fromIterables(headers, values);
-      expect(row['occurred_at_local'], '2026-10-04T08:15:32');
-      expect(row['occurred_at_utc'], '');
-      expect(row['timestamp_unix_seconds'], '');
+      final expectedUtc = DateTime(2026, 10, 4, 8, 15, 32).toUtc();
+      expect(row['occurred_at_utc'], expectedUtc.toIso8601String());
+      expect(
+        row['timestamp_unix_seconds'],
+        '${expectedUtc.millisecondsSinceEpoch ~/ 1000}',
+      );
+      expect(row['occurred_at_local'], expectedUtc.toLocal().toIso8601String());
       expect(row['duration_ms'], '');
       expect(row['pressure_peak_pa'], '');
       expect(row['confidence'], '');
       expect(row['device_file_id'], 'data_test_1.txt');
-      expect(row['time_basis'], 'device_local_offset_unknown');
+      expect(row['time_basis'], 'unix_utc');
     },
   );
 
@@ -198,7 +213,7 @@ void main() {
       addTearDown(repo.close);
       for (var i = 0; i < 111; i++) {
         await raw.save(
-          timestamp('2026-10-04_08-00-00', file: 'data_old_$i.txt'),
+          timestamp(utcHex(DateTime(2026, 10, 4, 8)), file: 'data_old_$i.txt'),
         );
       }
       expect(await raw.readRecent(), hasLength(100));
@@ -234,7 +249,7 @@ void main() {
         '12345678',
         '0',
         'data_test_1.txt',
-        '2026-10-04_08-00-00',
+        utcHex(DateTime(2026, 10, 4, 8)),
       ]);
       await Future<void>.delayed(Duration.zero);
       expect(raw.rows, hasLength(1));
@@ -261,7 +276,7 @@ void main() {
           '87654321',
           '0',
           'data_test_2.txt',
-          '2026-10-04_09-00-00',
+          utcHex(DateTime(2026, 10, 4, 9)),
         ]),
         throwsStateError,
       );
@@ -317,7 +332,7 @@ void main() {
       var repo = await open(path);
       expect(await repo.readSyncCursor('C3-A'), 17);
       expect(await repo.lastSyncAt(), _now.toUtc());
-      await repo.saveDeviceTimestamp(timestamp('2026-10-04_08-00-00'));
+      await repo.saveDeviceTimestamp(timestamp(utcHex(DateTime(2026, 10, 4, 8))));
       await repo.close();
       repo = await open(path);
       expect(await repo.readAll(), hasLength(2));
@@ -356,6 +371,13 @@ void main() {
       transport.state(DeviceConnectionState.connected);
       await until(() => transport.writes.contains('HELLO'));
       transport.frame('READY|AABBCCDDEEFF|P01');
+      // The device initiates the transfer; the app only consents after REQ.
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(
+        transport.writes.where((value) => value.startsWith('SYNC_REQ|')),
+        isEmpty,
+      );
+      transport.frame('REQ|12345678|1');
       await until(
         () => transport.writes.any((value) => value.startsWith('SYNC_REQ|')),
       );
@@ -363,11 +385,12 @@ void main() {
           .lastWhere((value) => value.startsWith('SYNC_REQ|'))
           .split('|')
           .last;
+      expect(token, '12345678');
       transport.frame('BEGIN|$token|1');
       await until(() => transport.writes.contains('START|$token'));
-      transport.frame('R|$token|0|data_test_1.txt|2026-10-04_08-00-00');
+      transport.frame('R|$token|0|data_test_1.txt|${utcHex(DateTime(2026, 10, 4, 8))}');
       await until(() => transport.writes.contains('ACK|$token|0'));
-      expect((await repo.readAll()).single.localOccurredAt!.hour, 8);
+      expect((await repo.readAll()).single.localOccurredAt, DateTime(2026, 10, 4, 8).toLocal());
       transport.frame('END|$token|1');
       await until(() => transport.writes.contains('COMMIT|$token'));
       expect(await repo.lastSyncAt(), isNull);

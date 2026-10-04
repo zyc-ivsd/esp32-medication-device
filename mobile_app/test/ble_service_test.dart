@@ -124,10 +124,15 @@ void main() {
       expect(ble.order.take(3), ['discover', 'subscribe', 'HELLO']);
       expect(ble.writes.every((w) => w == 'HELLO'), true);
       ble.frame('READY|AABBCCDDEEFF|P01');
+      // Legacy firmware offers REQ after READY; the app must not ask first.
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(ble.writes.where((w) => w.startsWith('SYNC_REQ|')), isEmpty);
+      ble.frame('REQ|a1b2c3d4|1');
       await until(() => ble.writes.any((w) => w.startsWith('SYNC_REQ|')));
       final token = ble.writes
           .firstWhere((w) => w.startsWith('SYNC_REQ|'))
           .split('|')[1];
+      expect(token, 'a1b2c3d4');
       ble.frame('BEGIN|$token|1');
       await until(() => ble.writes.contains('START|$token'));
       // Corruption receives no ACK; leading newline in a retry resynchronizes.
@@ -135,7 +140,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 10));
       expect(ble.writes.where((w) => w.startsWith('ACK')), isEmpty);
       ble.frame(
-        'R|$token|0|data_2026-08-29_22-30-00_1.txt|2026-08-29_22-30-00',
+        'R|$token|0|data_6878f1c0_1.txt|0000000068b075c0',
       );
       await until(() => ble.writes.contains('ACK|$token|0'));
       expect(store.rows.length, 1);
@@ -226,8 +231,12 @@ void main() {
       ble.state(DeviceConnectionState.connected);
       await until(() => ble.writes.isNotEmpty);
       ble.frame('READY|AABBCCDDEEFF|P01');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(ble.writes.where((w) => w.startsWith('SYNC_REQ|')), isEmpty);
+      ble.frame('REQ|a1b2c3d4|0');
       await until(() => ble.writes.any((w) => w.startsWith('SYNC_REQ|')));
       final token = ble.writes.last.split('|')[1];
+      expect(token, 'a1b2c3d4');
       ble.frame('BEGIN|$token|0');
       await until(() => ble.writes.contains('START|$token'));
       ble.frame('END|$token|0');
@@ -240,6 +249,58 @@ void main() {
       service.dispose();
       await until(() => store.closed);
       await ble.close();
+    },
+  );
+  test(
+    'a dropped link clears the outstanding offer so the next REQ is accepted',
+    () async {
+      // Regression: the device reconnects with a NEW token. If the app kept the
+      // previous token, the fresh REQ looked like a duplicate and was silently
+      // ignored, so the device retried forever and never got a SYNC_REQ.
+      final ble = FakeBleTransport();
+      final store = MemoryTextStore();
+      final service = BleService(
+        transport: ble,
+        store: store,
+        usePreferences: false,
+        handshakeInterval: const Duration(milliseconds: 10),
+        reconnectDelay: const Duration(milliseconds: 10),
+      );
+      addTearDown(() async {
+        service.dispose();
+        await until(() => store.closed);
+        await ble.close();
+      });
+      await service.connectToDevice('phone-link');
+      ble.state(DeviceConnectionState.connected);
+      await until(() => ble.writes.contains('HELLO'));
+      ble.frame('READY|AABBCCDDEEFF|P01');
+      // First offer is accepted but the link drops before any data arrives.
+      ble.frame('REQ|aaaaaaaa|10');
+      await until(() => ble.writes.contains('SYNC_REQ|aaaaaaaa'));
+
+      // Manual disconnect runs _clearLink, the same path a dropped link takes.
+      await service.disconnect();
+      expect(
+        service.hasPendingDeviceRequest,
+        isFalse,
+        reason: 'the stale offer token must not survive a link drop',
+      );
+
+      // Reconnect: the device offers a brand-new token and it must be accepted.
+      await service.connectToDevice('phone-link');
+      ble.state(DeviceConnectionState.connected);
+      await until(() => ble.writes.where((w) => w == 'HELLO').length == 2);
+      ble.frame('READY|AABBCCDDEEFF|P01');
+      ble.frame('REQ|bbbbbbbb|10');
+      await until(
+        () => ble.writes.any((w) => w.startsWith('SYNC_REQ|bbbbbbbb')),
+      );
+      expect(
+        ble.writes.where((w) => w == 'SYNC_REQ|bbbbbbbb'),
+        hasLength(1),
+        reason: 'the new offer must not be ignored as a duplicate',
+      );
     },
   );
 }

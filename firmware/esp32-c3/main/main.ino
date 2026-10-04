@@ -59,8 +59,9 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  storageReady = SPIFFS.begin(false);
+  storageReady = SPIFFS.begin(true);
   counterReady = fileCounter.begin("proto-files", false);
+  loadArchiveState();
   Serial.println(storageReady ? "SPIFFS mounted" : "SPIFFS unavailable; no auto-format");
   restoreTimeFromNVS();
   printTime();

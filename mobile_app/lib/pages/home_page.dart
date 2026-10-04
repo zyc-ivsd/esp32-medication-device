@@ -646,7 +646,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       'Device file': record.deviceFileId!,
                       'Original timestamp': record.rawTimestampText!,
                       'Time basis':
-                          'Device calendar time; original timezone not supplied',
+                          'Device UTC seconds (64-bit hex); shown in your phone timezone',
                       'Received on phone': record.receivedAt!
                           .toLocal()
                           .toString(),
@@ -656,7 +656,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         ? 'Unknown time; excluded from daily counts'
                         : '${dateLabel(time)} ${timeLabel(time)}',
                     'UTC time':
-                        record.occurredAt?.toIso8601String() ??
+                        (record.isTimestampRecord
+                                ? parseDeviceTimestamp(record.rawTimestampText!)
+                                : record.occurredAt)
+                            ?.toIso8601String() ??
                         'Not supplied by device',
                     if (!record.isTimestampRecord) ...{
                       'Duration': '${record.durationMs} ms',
