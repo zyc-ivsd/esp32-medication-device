@@ -48,7 +48,7 @@ void main() {
 
   test('toReference 拼成「标题：正文」的一行', () {
     final chunk = assistantKnowledge.firstWhere((c) => c.id == 'boundary.dose');
-    expect(chunk.toReference(), '${chunk.title}：${chunk.body}');
+    expect(chunk.toReference(), '${chunk.title}: ${chunk.body}');
   });
 
   test('知识里出现的数字放行进回验，不被误判成编造', () {
