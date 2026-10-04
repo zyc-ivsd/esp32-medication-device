@@ -5,6 +5,7 @@
 #include <BLE2902.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include "../log/log.h"
 
 #define PACKET_SIZE 20
 #define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
@@ -53,7 +54,7 @@ class MyServerCallbacks : public BLEServerCallbacks {
 #endif
     deviceConnected = true;
     refreshSleepDeadline();
-    Serial.println("CONNECTED: waiting for HELLO and Notify subscription");
+    LOGLN("CONNECTED: waiting for HELLO and Notify subscription");
   }
 #if defined(CONFIG_NIMBLE_ENABLED)
   void onConnect(BLEServer *, ble_gap_conn_desc *connection) override {
@@ -69,7 +70,7 @@ class MyServerCallbacks : public BLEServerCallbacks {
     ++connectionGeneration;
     advertisePending = true;
     refreshSleepDeadline();
-    Serial.println("DISCONNECTED: files retained");
+    LOGLN("DISCONNECTED: files retained");
   }
 };
 class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
@@ -78,7 +79,7 @@ class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
     if (!deviceConnected || characteristic != pCharacteristic || !connection ||
         connection->conn_handle != activeConnectionHandle) return;
     notifySubscribed = (value & 0x0001) != 0;
-    Serial.println(notifySubscribed ? "NOTIFY_SUBSCRIBED: can reply READY" : "NOTIFY_UNSUBSCRIBED: waiting for phone");
+    LOGLN(notifySubscribed ? "NOTIFY_SUBSCRIBED: can reply READY" : "NOTIFY_UNSUBSCRIBED: waiting for phone");
   }
 #endif
   void onWrite(BLECharacteristic *characteristic) override {
@@ -87,13 +88,13 @@ class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
     ControlCommand command = {};
     memcpy(command.text, value.c_str(), value.length());
     command.generation = connectionGeneration;
-    Serial.printf("CONTROL_RX %s (generation %lu)\n", command.text, static_cast<unsigned long>(command.generation));
+    LOG("CONTROL_RX %s (generation %lu)\n", command.text, static_cast<unsigned long>(command.generation));
     // BLE callbacks never touch SPIFFS or wait for a database/network response.
     if (xQueueSend(commandQueue, &command, 0) != pdTRUE)
-      Serial.println("CONTROL_QUEUE_FULL: client can retry");
+      LOGLN("CONTROL_QUEUE_FULL: client can retry");
   }
 };
 void startAdvertising() {
   BLEDevice::startAdvertising();
-  Serial.println("BLE advertising");
+  LOGLN("BLE advertising");
 }

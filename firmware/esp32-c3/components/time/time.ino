@@ -2,6 +2,7 @@
 #include <Preferences.h>
 #include <time.h>
 #include <sys/time.h>
+#include "../log/log.h"
 #include "clock_command.h"
 
 // UTC is the system clock and the only time base the device stores or sends.
@@ -51,7 +52,7 @@ void restoreTimeFromNVS() {
   now.tv_sec = restored ? snapshot.utc : 946684800LL;
   clockValid = restored && settimeofday(&now, nullptr) == 0;
   if (!restored) settimeofday(&now, nullptr); // Explicit 2000 placeholder; never pretend calibrated.
-  Serial.println(restored ? "CLOCK_RESTORED: power-off elapsed time unknown; phone calibration required" :
+  LOGLN(restored ? "CLOCK_RESTORED: power-off elapsed time unknown; phone calibration required" :
     "CLOCK_UNCALIBRATED: connect phone before interpreting prototype timestamps");
 }
 // The device records UTC. The name reads as "local" for call-site continuity,
@@ -65,6 +66,6 @@ void printTime() {
   getDeviceLocalTime(result);
   char text[32];
   strftime(text, sizeof(text), "%Y-%m-%d %H:%M:%S", &result);
-  Serial.printf("CLOCK %s UTC; phone calibrated this boot: %s\n",
+  LOG("CLOCK %s UTC; phone calibrated this boot: %s\n",
     text, clockSynced ? "yes" : "no");
 }

@@ -4,6 +4,7 @@
 #include <vector>
 #include <algorithm>
 #include <time.h>
+#include "../log/log.h"
 #include "archive_plan.h"
 
 // Raw prototype files: `data_*` is the active, transferable area. After a
@@ -88,7 +89,9 @@ bool sendFrame(const String &body) {
     pCharacteristic->notify();
     delay(20);
   }
-  Serial.println("NOTIFY " + body);
+  // Every frame logs here, so this is the most frequent print in the firmware;
+  // LOGLN drops it when no monitor is draining the UART instead of stalling.
+  LOGLN("NOTIFY " + body);
   return true;
 }
 void resetSync() {
@@ -115,7 +118,7 @@ void syncError(const String &reason) {
   syncActive = false;
   waitingStart = false;
   waitingCommit = false;
-  Serial.println("SYNC_ERROR " + reason + ": files retained");
+  LOGLN("SYNC_ERROR " + reason + ": files retained");
 }
 bool writeFile() {
   if (!storageReady || !counterReady) return false;
@@ -143,16 +146,16 @@ bool writeFile() {
   } while (SPIFFS.exists(fileName));
   if (fileCounter.putUInt("next", counter) != sizeof(uint32_t)) return false;
   File file = SPIFFS.open(fileName, FILE_WRITE);
-  if (!file) { Serial.println("WRITE_FAILED: storage may be full"); return false; }
+  if (!file) { LOGLN("WRITE_FAILED: storage may be full"); return false; }
   // Always write the FULL 16-hex stamp, regardless of the shortened file name.
   const String line = String(hex) + "\n";
   const size_t written = file.print(line);
   file.flush();
   file.close();
-  if (written != line.length()) { Serial.println("WRITE_INCOMPLETE " + fileName); return false; }
-  if (clockValid && !saveTimeToNVS()) Serial.println("CLOCK_SNAPSHOT_FAILED: file is still retained");
-  if (!clockSynced) Serial.println("RECORD_TIME_UNCALIBRATED: raw text only");
-  Serial.println("CREATED " + fileName);
+  if (written != line.length()) { LOGLN("WRITE_INCOMPLETE " + fileName); return false; }
+  if (clockValid && !saveTimeToNVS()) LOGLN("CLOCK_SNAPSHOT_FAILED: file is still retained");
+  if (!clockSynced) LOGLN("RECORD_TIME_UNCALIBRATED: raw text only");
+  LOGLN("CREATED " + fileName);
   // The device owns sync initiation: a new file is offered to the phone at the
   // next opportunity. If nobody is subscribed it stays pending until the next
   // handshake, so the record is never stranded.
@@ -172,14 +175,14 @@ void saveArchiveState() {
   if (!archiveReady) return;
   if (archivePrefs.putString("group", archiveGroup) == 0 ||
       archivePrefs.putUInt("seq", archiveSeq) != sizeof(uint32_t)) {
-    Serial.println("ARCHIVE_STATE_FAILED: continuing with in-memory state");
+    LOGLN("ARCHIVE_STATE_FAILED: continuing with in-memory state");
   }
 }
 
 void loadArchiveState() {
   archiveReady = archivePrefs.begin("proto-archive", false);
   if (!archiveReady) {
-    Serial.println("ARCHIVE_NVS_UNAVAILABLE: archives start empty each boot");
+    LOGLN("ARCHIVE_NVS_UNAVAILABLE: archives start empty each boot");
     archiveGroup = "DA";
     archiveSeq = 0;
     return;
@@ -188,7 +191,7 @@ void loadArchiveState() {
   const uint32_t seq = archivePrefs.getUInt("seq", 0);
   archiveGroup = (group == "DB") ? "DB" : "DA";
   archiveSeq = (seq <= ARCHIVE_GROUP_SIZE) ? seq : ARCHIVE_GROUP_SIZE;
-  Serial.printf("ARCHIVE_STATE group=%s seq=%u\n", archiveGroup.c_str(),
+  LOG("ARCHIVE_STATE group=%s seq=%u\n", archiveGroup.c_str(),
                 static_cast<unsigned>(archiveSeq));
 }
 
@@ -224,11 +227,11 @@ bool clearArchiveGroup(const char *group) {
     else if (failedName.isEmpty()) failedName = name;
   }
   if (!failedName.isEmpty()) {
-    Serial.printf("ARCHIVE_CLEAR_FAILED %s (%u/%u removed)\n", failedName.c_str(),
+    LOG("ARCHIVE_CLEAR_FAILED %s (%u/%u removed)\n", failedName.c_str(),
                   static_cast<unsigned>(removed), static_cast<unsigned>(doomed.size()));
     return false;
   }
-  Serial.printf("ARCHIVE_CLEARED %s (%u file(s))\n", group,
+  LOG("ARCHIVE_CLEARED %s (%u file(s))\n", group,
                 static_cast<unsigned>(removed));
   return true;
 }
@@ -253,7 +256,7 @@ bool archiveTransferredFile(const String &dataName, size_t ordinal) {
   file.close();
   stamp.trim();
   if (!validTimestamp(stamp)) {
-    Serial.printf("ARCHIVE_BAD_CONTENT %s\n", dataName.c_str());
+    LOG("ARCHIVE_BAD_CONTENT %s\n", dataName.c_str());
     return false;
   }
   char bare[48];
@@ -266,11 +269,11 @@ bool archiveTransferredFile(const String &dataName, size_t ordinal) {
   // already exists instead of replacing it. Ordinals should be unique, but a
   // stale file from a failed group clear would collide, so drop it first.
   if (SPIFFS.exists(targetPath) && !SPIFFS.remove(targetPath)) {
-    Serial.printf("ARCHIVE_TARGET_BUSY %s\n", targetPath);
+    LOG("ARCHIVE_TARGET_BUSY %s\n", targetPath);
     return false;
   }
   if (!SPIFFS.rename(sourcePath, targetPath)) {
-    Serial.printf("ARCHIVE_RENAME_FAILED %s -> %s\n", sourcePath, targetPath);
+    LOG("ARCHIVE_RENAME_FAILED %s -> %s\n", sourcePath, targetPath);
     return false;
   }
   return true;
@@ -305,7 +308,7 @@ size_t archiveTransferredFiles() {
     saveArchiveState();
     ++archived;
   }
-  Serial.printf("ARCHIVED %u file(s) into %s (seq=%u)\n",
+  LOG("ARCHIVED %u file(s) into %s (seq=%u)\n",
                 static_cast<unsigned>(archived), archiveGroup.c_str(),
                 static_cast<unsigned>(archiveSeq));
   return archived;
@@ -393,11 +396,11 @@ bool sendSyncRequest() {
     // Storage is not usable. Report it once and keep the request pending so a
     // later button press or reconnect can retry after the fault is cleared.
     pendingSyncRequest = false;
-    Serial.printf("REQ_FAILED %s: files retained\n", reason);
+    LOG("REQ_FAILED %s: files retained\n", reason);
     return false;
   }
   if (files.empty()) {
-    Serial.println("REQ_SKIP: no files to transfer");
+    LOGLN("REQ_SKIP: no files to transfer");
     pendingSyncRequest = false;
     return false;
   }
@@ -410,7 +413,7 @@ bool sendSyncRequest() {
   }
   pendingSyncRequest = false;
   lastRequestAt = millis();
-  Serial.printf("REQ_SENT %s count=%u total=%u\n", syncRequestToken.c_str(),
+  LOG("REQ_SENT %s count=%u total=%u\n", syncRequestToken.c_str(),
                 static_cast<unsigned>(syncRequestCount),
                 static_cast<unsigned>(files.size()));
   return true;
@@ -459,10 +462,10 @@ void beginSync(const String &token) {
   lastFrameAt = millis();
 }
 void handleCommand(const String &command) {
-  Serial.println("CONTROL " + command);
+  LOGLN("CONTROL " + command);
   if (command == "HELLO") {
     helloPending = true;
-    if (!notifyReady()) Serial.println("HELLO_WAIT_NOTIFY: phone has not enabled notifications yet");
+    if (!notifyReady()) LOGLN("HELLO_WAIT_NOTIFY: phone has not enabled notifications yet");
     return;
   }
   if (!helloReady || !notifyReady()) return;
@@ -491,7 +494,7 @@ void handleCommand(const String &command) {
     if (syncRequestSent && validToken(token) && token == syncRequestToken) {
       beginSync(token);
     } else {
-      Serial.println("SYNC_REQ_IGNORED: no matching outstanding REQ");
+      LOGLN("SYNC_REQ_IGNORED: no matching outstanding REQ");
     }
   } else if (syncActive && waitingStart && command == "START|" + syncToken) {
     waitingStart = false;
@@ -514,7 +517,7 @@ void handleCommand(const String &command) {
       // Ask for another round only when this round actually freed files, so a
       // storage fault that blocks every rename cannot spin on REQ forever.
       pendingSyncRequest = archived > 0;
-      Serial.println("COMPLETED: transferred files archived");
+      LOGLN("COMPLETED: transferred files archived");
     } else if (validToken(token) && token == completedToken) {
       // A retried COMMIT after a lost DONE: the round is already archived, but
       // the phone still needs its acknowledgement. No second archive pass.

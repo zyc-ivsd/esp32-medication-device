@@ -9,9 +9,24 @@
 // changes the characteristic PROPERTY_NOTIFY, not the client's subscription.
 // See the pinned upstream BLE2902.cpp, not the legacy Bluedroid semantics.
 using String = std::string;
-inline uint32_t millis() { return 1000; }
+// Frozen clock, but delay() advances it so bounded-wait loops in the firmware
+// terminate instead of spinning forever on host.
+inline uint32_t &fakeNow() {
+  static uint32_t now = 1000;
+  return now;
+}
+inline uint32_t millis() { return fakeNow(); }
+inline void delay(uint32_t ms) { fakeNow() += ms == 0 ? 1 : ms; }
 struct FakeSerial {
+  // Model a port with no monitor attached: no writable space, so the firmware's
+  // monitor probe never enables logging and nothing blocks. write() counts the
+  // bytes the probe tried to park.
+  size_t parked = 0;
+  int availableForWrite() const { return 0; }
+  void write(char) { ++parked; }
+  void println() {}
   void println(const char *) {}
+  void println(const String &) {}
   template <typename... Args> void printf(const char *, Args...) {}
 };
 static FakeSerial Serial;
