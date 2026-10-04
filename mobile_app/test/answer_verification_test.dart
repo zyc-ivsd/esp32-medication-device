@@ -43,19 +43,12 @@ void main() {
   });
 
   test('凭空出现的次数会被指出', () {
-    expect(
-      numbersNotInSummary('本周记录了 12 次使用动作。', context, now: now),
-      [12],
-    );
+    expect(numbersNotInSummary('本周记录了 12 次使用动作。', context, now: now), [12]);
   });
 
   test('闲聊里的数字（岁、小时、分钟）不触发回验', () {
     expect(
-      numbersNotInSummary(
-        '一般建议 50 岁以上人群每年检查，每次约 30 分钟。',
-        context,
-        now: now,
-      ),
+      numbersNotInSummary('一般建议 50 岁以上人群每年检查，每次约 30 分钟。', context, now: now),
       isEmpty,
     );
   });
@@ -104,7 +97,7 @@ void main() {
     final verified = verifyRemoteAnswer('本周记录了 12 次。', context, now: now);
     expect(verified, startsWith('本周记录了 12 次。'));
     expect(verified, contains('12'));
-    expect(verified, contains('与当前统计摘要对不上'));
+    expect(verified, contains('does not match the current record summary'));
     expect(mismatchNotice(const []), isNull);
   });
 
@@ -115,7 +108,10 @@ void main() {
   test('回验自身无法判断时放行，不阻断回答', () {
     // 超出 int 范围的长数字解析不出来；宁可放行，也不能让助手指望不上。
     const answer = '共 99999999999999999999 次。';
-    expect(verifyRemoteAnswer(answer, const AssistantContext(), now: now), answer);
+    expect(
+      verifyRemoteAnswer(answer, const AssistantContext(), now: now),
+      answer,
+    );
     expect(verifyRemoteAnswer('', const AssistantContext(), now: now), '');
   });
 
@@ -126,7 +122,7 @@ void main() {
       isRemote: true,
       now: now,
     ).ask(question: '最近怎么样？', context: context);
-    expect(remote.text, contains('与当前统计摘要对不上'));
+    expect(remote.text, contains('does not match the current record summary'));
 
     final local = await AssistantService(
       provider: _FixedProvider(bogus),
@@ -167,8 +163,11 @@ void main() {
     ).ask(question: '介绍一下哮喘', context: context);
     expect(message.source, ChatSource.knowledge);
     expect(message.text, contains('3 亿'));
-    expect(message.text, contains('不是你的设备记录'));
-    expect(message.text, isNot(contains('与当前统计摘要对不上')));
+    expect(message.text, contains('not your device records'));
+    expect(
+      message.text,
+      isNot(contains('does not match the current record summary')),
+    );
     expect(message.text, isNot(contains('【来源】')));
   });
 
@@ -179,15 +178,14 @@ void main() {
       now: now,
     ).ask(question: '最近怎么样？', context: context);
     expect(message.source, ChatSource.online);
-    expect(message.text, contains('与当前统计摘要对不上'));
+    expect(message.text, contains('does not match the current record summary'));
     expect(message.text, isNot(contains('【来源】')));
   });
 
   test('本地回答的来源是本地', () async {
-    final message = await AssistantService(provider: _FixedProvider('任意')).ask(
-      question: '随便问问',
-      context: context,
-    );
+    final message = await AssistantService(
+      provider: _FixedProvider('任意'),
+    ).ask(question: '随便问问', context: context);
     expect(message.source, ChatSource.local);
   });
 }

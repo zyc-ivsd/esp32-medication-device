@@ -1,79 +1,58 @@
-# 用药装置 Android App · 0.3.2
+# parcel Android · 0.4.0+6
 
-Flutter / Dart 开发，A 的数据与页面已与 B 的 BLE 原型合并。本轮集中交付 Android；保留 iOS 历史工程，但不要求 Mac 或 iPhone 验收。
+English-language medication diary built with Flutter / Dart, with a lavender and peach interface. Android is the delivery target. There is no runtime demonstration dataset.
 
-## 安装和体验
+## Install and use
 
-使用本轮 `app-debug.apk` 内部测试包：传到 Android 手机，从文件管理器打开，允许该来源安装，然后打开“用药装置”。Android 7.0 / API 24 以上可安装；是否支持目标手机蓝牙仍需实测。
+Android 7.0 / API 24 or later is required. Transfer the APK to the phone, open it in the file manager, allow installation and open **parcel**. Use **Overview → Device connection**, grant Bluetooth permissions and connect inside the app. Wake a sleeping device with its button before scanning.
 
-1. 概览 → 设备连接 → 授予蓝牙权限 → 扫描连接硬件组的设备；完整步骤见 [A+B 联调](../docs/member-ab-integration.md)。
-2. 概览、历史、日期筛选、CSV 和助手统计只读取设备事件记录；没有记录时显示空状态，不自动生成或导入合成数据。
-3. 现有原型接收的是时间文本，保存在独立原型数据库，**不会进入正式历史、统计及助手摘要**。正式事件解码还需与固件组完成。
-4. 概览 → 问问记录助手：默认按本地规则回答，不联网。摘要卡片会画出**助手实际读到的近 7 天逐日次数**，快捷问句包含“有什么建议？”“能问什么？”；本地还能答连接故障排查、数据来源、怎么导出 CSV 等问题。没有记录时仍可询问 App 用法；配置自己的模型后可使用在线问答。
-5. 概览顶部出现**“需要留意”卡片**时，表示本地规则发现了数据质量或设备维护问题；它和助手用的是同一套规则（见 [`docs/assistant-local-rules.md`](../docs/assistant-local-rules.md)）。卡片可在本次会话内关闭。
+Use the complete firmware from `codex/android-xiaozhi-prep`; older firmware without HELLO/READY cannot complete the handshake. TIME1 firmware synchronizes its clock before transferring records. See [the wire protocol](../protocol/prototype-text-v01.md).
 
-设备事件和原型时间文本分别存储。0.3.2 移除了演示数据入口、生成器和数据源切换；升级继续使用原来的 `records_device.db`，保留设备记录、同步位置、模型设置及聊天历史。旧版 `records_demo.db` 不再打开或用于统计，也不自动删除。覆盖安装要求包名相同、签名一致且版本号允许；若提示签名冲突，先导出需要保留的数据，不要直接卸载旧版。
+The team defines **one valid button-generated timestamp as one medication-use entry**. After synchronization, entries feed History, daily counts, CSV and assistant summaries. This is a user-triggered diary, not a dose measurement or proof of ingestion.
 
-## 在线文字助手
+- `(device_id, file_id)` identifies an entry. Reconnection and replay do not add another count; different files at the same second remain separate entries. Conflicting content for an existing identity is rejected.
+- Dates must exactly match `YYYY-MM-DD_HH-MM-SS`, represent valid calendar dates and fall in 2001–2099. The firmware's year-2000 placeholder and malformed dates are retained but excluded from daily counts. Future dates are also excluded until no longer future.
+- Original text remains in `prototype_text.db`. Diary entries are stored in the new `timestamp_uses` table in `records_device.db` (schema v2), alongside existing structured events.
+- ACK follows both durable writes. If interrupted between writes, replay or startup backfill repairs the missing entry. Last-sync time advances only after DONE.
+- Upgrading imports **all** retained timestamps, including those beyond the connection page's 100-record display limit. Existing structured records, cursors, settings and chats remain. Historical test button presses cannot be distinguished from real diary entries and are also imported.
+- Timestamp-only records do not supply pressure, duration, confidence, battery voltage or an original UTC offset. CSV leaves those fields empty and preserves the original calendar time without inventing a UTC instant.
+- History filters and CSV use the same selection. Overview and assistant use the complete diary; the assistant reloads its summary for every question.
 
-**在线助手的现行路线是「我自己的模型」（BYOK）：App 直连用户自己的 OpenAI 兼容模型，API Key 只能是用户自己的、加密保存在手机（`flutter_secure_storage`），调用时直接发送给所选模型服务、不经过团队服务器。** 已放弃小智官方云（设备激活要求 ESP32 eFuse 里的 HMAC 密钥签名，手机做不到），也不再走自建小智智控台（大模型 Key 归服务器、记忆共享，与「Key 加密保存在手机、不经过团队服务器」冲突）。旧的自建网关 `server/assistant-gateway/` 保留为历史资料，不属于本轮交付。
+In-place updates require the same application ID (`org.igem.medication.medication_device_app`) and signing certificate. Do not uninstall simply to resolve a signing mismatch: uninstalling removes local data. Old demonstration databases remain unused and are not deleted automatically.
 
-在线助手设置里填：
+## Assistant
 
-- **模型服务地址**（OpenAI 兼容的 `/chat/completions` 端点）；
-- **你自己的 API Key**（加密保存在手机安全存储，App 直连模型、不经过团队服务器）；
-- **模型名**。
+**Local** uses fixed rules, not a language model. It explains counts, synchronization, data quality and app functions offline. English quick questions and answers are provided, while legacy Chinese query matching remains supported.
 
-不要在 App 里填团队共享 Key、小智账号密码、ESP32 eFuse 密钥或上游 Token——只填你自己的 Key。Key 的边界与风险见[模型接入与边界](../docs/assistant-model-access.md)。
+**Online** connects directly to the user's OpenAI-compatible model API. In **Manage APIs**, enter the service URL, your own API key and model name, then confirm summary sharing. Credentials use `flutter_secure_storage`. No shared key is embedded in the APK, no team server is required, and Xiaozhi is not used.
 
-在助手右上角“回答方式”菜单选择“在线助手设置”，填写上述三项，勾选摘要发送确认后启用：
+Requests include the question, aggregate diary context and relevant on-device reference snippets. Raw rows and device identifiers are not automatically uploaded. Optional conversation history is off by default and limited to relevant recent messages. Answers stream into the chat; interrupted/truncated replies remain visible with a notice and retry option. Source labels distinguish records from general AI knowledge.
 
-- 只发送本次问题、设备记录的统计摘要和**手机端检索到的 RAG 参考片段**；不自动上传原始记录、设备标识或历史对话。用户在问题里主动输入的内容也会发送。
-- 直连模型时回答**流式边出边显示**；「更多」菜单可开启「带上本轮对话」（默认关），开启后仅你的模型会带上本轮问答帮助追问——发送前按当前问题做相关性裁剪，最多 8 条，无关历史不会被整段发出去。
-- 长回复的正文和 SSE 包装分别设上限，不会因普通回答的协议流量超过 64 KB 而失败。连接中断或服务商截断输出时保留已收到的文字、标明未完成并提供重试；部分回答不会作为完整历史发送给模型，也不会自动朗读。
-- 地址、模型名和 Key 一起存 `flutter_secure_storage`（多份 API 可并存，右上角「管理 API」里查看/编辑/删除/切换），可随时切回“本地摘要”。
-- 请求失败只显示固定错误文案，**不冒充本地或上游成功回答**，也不回显任何凭据或上游响应。
-- 本轮只处理文字；可选「朗读」按钮用 Android 系统 TTS 朗读回答（语音留在手机，不联网），「更多」→「朗读设置」可开自动朗读、调语速/音调。不录音、不播放小智语音，不控制装置或修改记录。
-- 助手回答用颜色与字体强调重要程度：开头的「声明」浅色斜体、正文黑色、摘要有依据且后接「次 / 条」的个人计数蓝色、对不上或需要留意的数字/段落红色加粗。这只改显示、不改原文——朗读、搜索、落盘仍用原始文本。
-- 回答气泡下会给出「接着问」建议（如「今天用了几次？」「数据是最新的吗？」），点一下即追问；右上角搜索按钮可按关键字筛历史对话；摘要卡片旁有同步状态徽标（已同步 / 数据可能不是最新 / 尚未同步）。
-- 每条助手回答带「有帮助 / 没帮助」反馈：赞只做标记，踩在线回答时**不回传模型、不落盘**，只用本地规则把同一问题重新解释一遍作对比；回答失败会显示「上次回答失败，点这里重试」；等待回答或流式输出中可点「取消 / 停止」立即回到可输入状态（迟到的结果被丢弃）。
-- 「更多」→「大字模式」放大整页文字，方便老年用户；摘要卡片把近 7 天逐日次数画成小柱状图，点任一天可看当天次数。
+English read-aloud uses Android TTS (`en-US`) with a compatible installed offline voice. The app does not record speech or control the hardware. Records do not establish adherence, and the assistant does not prescribe or adjust medication.
 
-在线回答会带 `【来源】AI知识` / `【来源】记录统计` 标记；手机端 RAG 检索的是**装置、同步与 App 用法相关的事实**（边界、错误码、校时、维护、数据来源、导出、清空对话、搜索、朗读、大字、切在线等），不含疾病或用药内容，检索已做归一化、同义与错别字容错——这样用户遇到 App 怎么用的问题也能向助手求助。只有 debug 构建可用 `127.0.0.1`、`localhost`、模拟器 `10.0.2.2` 的 HTTP；其他地址和 release 构建必须使用可信证书 HTTPS。
+## Develop and verify
 
-## 开发与构建
+Development branch: **`codex/android-xiaozhi-prep`**. Toolchain: Flutter **3.47.4**, Dart **3.13.3**, JDK **17**, Android compile/target SDK **36**. Dependencies are pinned in `pubspec.lock`.
 
-固定环境：Flutter **3.47.4** / Dart **3.13.3**、JDK **17**、Android compile/target SDK **36**，依赖见 `pubspec.lock`。配置好 Android SDK 与 `JAVA_HOME` 后：
-
-```bash
+```sh
 cd mobile_app
-flutter doctor -v
 flutter pub get --enforce-lockfile
 flutter analyze
 flutter test
 flutter build apk --debug
-adb devices
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
 ```
 
-`flutter analyze` 对 warning 和 info **也返回失败**，提交前要保证 0 issue。const 相关提示（`prefer_const_constructors`、`unnecessary_const`、const 构造函数里的断言）最容易出现在测试文件里。注意：没有任何 Flutter 的机器上，编辑器的静态检查会**漏报** Dart 错误，Dart 代码以 CI 结果为准。
+Static analysis must report zero issues. Timestamp tests cover strict calendar validation, duplicate/conflicting files, same-second entries, schema-v1 migration, backfill beyond 100 rows, failure before ACK and completion only after DONE. Widget tests verify English diary dates, counts and original evidence.
 
-USB 安装需打开手机开发者选项 / USB 调试，并在手机上授权电脑。debug APK 为内部测试包。当前 Gradle 的 release 仍使用 debug 签名，**不能作为正式商店发布包**；正式分发前建立团队保管的发布密钥并配置签名。
+For optional UI previews, set `PARCEL_PREVIEW_OUTPUT` to an output folder and `PARCEL_PREVIEW_FONTS` to Flutter's `bin/cache/artifacts/material_fonts`, then run `flutter test test/timestamp_diary_ui_test.dart`. Fixtures exist only in tests, not in the APK.
 
-可选 `--dart-define=ASSISTANT_GATEWAY_URL=https://your-host/v1/assistant/chat` 仅预填地址，不自动启用在线模式。不要用构建参数把 Token 或模型 API Key 写入 APK。
-
-`flutter_reactive_ble 5.5.0` 子项目的 compileSdk 在 `android/build.gradle.kts` 调整为 36，以兼容当前 AndroidX；不修改本机 pub 缓存。升级插件和 Flutter 时复查该兼容配置。
-
-## 代码入口与口径
-
-| 位置 | 内容 |
+| Entry point | Responsibility |
 |---|---|
-| `lib/database/`、`lib/models/` | 正式事件模型、事务、去重、连续同步位置 |
-| `lib/pages/`、`lib/services/` | 设备记录概览、历史、筛选、CSV |
-| `lib/ble/` | 原型扫描/连接、分片校验、文本数据库、联调页 |
-| `lib/assistant/` | 本地 / 在线 Provider、摘要、设置与聊天页面 |
-| `test/` | 数据、协议、页面、权限状态、在线助手网络契约测试 |
+| `lib/ble/` | Permissions, P01/TIME1 synchronization, raw storage and diary write-through |
+| `lib/database/`, `lib/models/` | Durable storage, migration, deduplication, calendar validation and daily summaries |
+| `lib/pages/`, `lib/services/` | Overview, history, details, filters and CSV |
+| `lib/theme/` | Shared lavender/peach theme |
+| `lib/assistant/` | English UI, local rules, reference retrieval, model API and TTS |
 
-统计中 `event_type=1` 为使用动作，`event_type=2` 单独统计；未知与未来时间不计入按日统计。日期筛选影响历史与 CSV，助手每次提问重新读取设备记录的今日 / 近 7 天摘要。统计和页面测试使用 `test/support/record_fixtures.dart` 的测试输入，生产代码没有记录生成器。
-
-电脑自动化测试不能替代 Android 权限弹窗、手机分享面板、BLE 射频与整机掉电验收。后续任务见 [Android 路线](../docs/android-roadmap.md)；历史 iOS 验证保留在 [归档说明](../docs/ios-readiness.md)。
+Automated tests cannot validate phone permissions, radio behavior, physical button debounce or hardware timekeeping. Debug APKs are for internal testing. Release currently also uses debug signing; establish a team-owned release key before public distribution. See [remaining work](../docs/android-roadmap.md).

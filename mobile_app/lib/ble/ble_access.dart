@@ -29,12 +29,14 @@ class BleAccessGate {
 
   Future<void> ensureReady() async {
     if (platform == BleHostPlatform.unsupported) {
-      throw const BleAccessException('请使用支持蓝牙的 Android 手机或 iPhone');
+      throw const BleAccessException(
+        'Use an Android phone with Bluetooth support',
+      );
     }
     if (platform == BleHostPlatform.android &&
         !await requestAndroidPermissions()) {
       throw const BleAccessException(
-        '请允许蓝牙权限；Android 11 及以下还需要位置权限',
+        'Allow Bluetooth access. Android 11 and earlier also need location access.',
         canOpenSettings: true,
       );
     }
@@ -45,16 +47,21 @@ class BleAccessGate {
             .firstWhere((s) => s != BleStatus.unknown)
             .timeout(timeout);
       } on TimeoutException {
-        throw const BleAccessException('蓝牙尚未就绪。请处理系统授权提示，再点击扫描设备');
+        throw const BleAccessException(
+          'Bluetooth is not ready. Complete the system permission prompt and scan again.',
+        );
       }
     }
     if (status == BleStatus.ready) return;
     throw BleAccessException(switch (status) {
-      BleStatus.poweredOff => '请在系统设置中打开蓝牙，再返回 App 扫描',
-      BleStatus.unauthorized => '蓝牙权限未获允许，请打开应用设置后开启蓝牙权限',
-      BleStatus.locationServicesDisabled => '旧版 Android 扫描需要打开系统位置信息',
-      BleStatus.unsupported => '当前设备不支持 BLE；iOS 模拟器不能代替 iPhone 蓝牙联调',
-      _ => '蓝牙尚未就绪，请稍后重试',
+      BleStatus.poweredOff =>
+        'Turn on Bluetooth in system settings, then return to scan.',
+      BleStatus.unauthorized =>
+        'Bluetooth permission was denied. Enable it in app settings.',
+      BleStatus.locationServicesDisabled =>
+        'Older Android versions need system location enabled to scan.',
+      BleStatus.unsupported => 'This device does not support BLE.',
+      _ => 'Bluetooth is not ready. Please try again.',
     }, canOpenSettings: status == BleStatus.unauthorized);
   }
 }

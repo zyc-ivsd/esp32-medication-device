@@ -54,21 +54,21 @@ String? fieldText(WidgetTester tester, String key) =>
 Future<void> agreeAndSave(WidgetTester tester) async {
   await tester.tap(find.byType(CheckboxListTile));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('保存'));
+  await tester.tap(find.text('Save'));
   await tester.pumpAndSettle();
 }
 
 const _presets = <String, String>{
   'DeepSeek': 'https://api.deepseek.com/v1',
-  '通义千问': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  'Qwen': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   'Kimi': 'https://api.moonshot.cn/v1',
-  '智谱 GLM': 'https://open.bigmodel.cn/api/paas/v4',
+  'GLM': 'https://open.bigmodel.cn/api/paas/v4',
 };
 
 void main() {
   testWidgets('点预设一下填好地址与模型名，名字空着才补', (tester) async {
     await _openForm(tester);
-    expect(find.text('常见服务（点一下自动填地址和模型名）'), findsOneWidget);
+    expect(find.text('Service presets'), findsOneWidget);
 
     await tester.tap(find.text('DeepSeek'));
     await tester.pumpAndSettle();
@@ -78,7 +78,7 @@ void main() {
 
     // 用户自己起过名字就不该被预设覆盖。
     await tester.enterText(find.byKey(const Key('profile-name')), '我的首选');
-    await tester.tap(find.text('通义千问'));
+    await tester.tap(find.text('Qwen'));
     await tester.pumpAndSettle();
     expect(fieldText(tester, 'profile-name'), '我的首选');
     expect(
@@ -104,7 +104,7 @@ void main() {
   testWidgets('自带模型的输入框带填写示范', (tester) async {
     await _openForm(tester);
     // 只填到 /v1 也可以，路径由 App 补齐——这点必须写在界面上。
-    expect(find.textContaining('填到 /v1 即可'), findsOneWidget);
+    expect(find.textContaining('base URL ending in /v1'), findsOneWidget);
     expect(find.text('https://api.deepseek.com/v1'), findsOneWidget);
     expect(find.text('deepseek-chat'), findsOneWidget);
   });
@@ -127,7 +127,7 @@ void main() {
     await _openForm(tester);
     expect(
       tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, '保存'))
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Save'))
           .onPressed,
       isNull,
     );
@@ -141,7 +141,7 @@ void main() {
     );
     await tester.enterText(find.byKey(const Key('model-name')), 'm');
     await agreeAndSave(tester);
-    expect(find.textContaining('API Key'), findsWidgets);
+    expect(find.textContaining('API key'), findsWidgets);
     expect(harness.result, isNull);
   });
 
@@ -156,7 +156,7 @@ void main() {
     );
     await _openForm(tester, initial: existing);
 
-    expect(find.text('修改 API'), findsOneWidget);
+    expect(find.text('Edit API'), findsOneWidget);
     expect(fieldText(tester, 'profile-name'), 'DeepSeek');
     expect(fieldText(tester, 'model-base-url'), 'https://api.deepseek.com/v1');
     expect(fieldText(tester, 'model-api-key'), 'saved-key');
@@ -164,23 +164,30 @@ void main() {
   });
 
   testWidgets('凭据默认打码，点「显示」才看得见', (tester) async {
-    await _openForm(tester, initial: const AssistantProfile(
-      id: 'm1',
-      name: 'DeepSeek',
-      mode: OnlineAssistantMode.ownModel,
-      baseUrl: 'https://api.deepseek.com/v1',
-      apiKey: 'saved-key',
-      model: 'deepseek-chat',
-    ));
+    await _openForm(
+      tester,
+      initial: const AssistantProfile(
+        id: 'm1',
+        name: 'DeepSeek',
+        mode: OnlineAssistantMode.ownModel,
+        baseUrl: 'https://api.deepseek.com/v1',
+        apiKey: 'saved-key',
+        model: 'deepseek-chat',
+      ),
+    );
 
     expect(
-      tester.widget<TextField>(find.byKey(const Key('model-api-key'))).obscureText,
+      tester
+          .widget<TextField>(find.byKey(const Key('model-api-key')))
+          .obscureText,
       isTrue,
     );
-    await tester.tap(find.byTooltip('显示'));
+    await tester.tap(find.byTooltip('Show'));
     await tester.pumpAndSettle();
     expect(
-      tester.widget<TextField>(find.byKey(const Key('model-api-key'))).obscureText,
+      tester
+          .widget<TextField>(find.byKey(const Key('model-api-key')))
+          .obscureText,
       isFalse,
     );
   });
@@ -188,13 +195,22 @@ void main() {
   testWidgets('保存前写明发送什么、不发送什么、凭据存在哪', (tester) async {
     await _openForm(tester);
 
-    expect(find.textContaining('你本次输入的问题原文'), findsOneWidget);
-    expect(find.text('不会发送什么'), findsOneWidget);
-    expect(find.textContaining('原始记录与单条时间戳'), findsOneWidget);
-    expect(find.text('凭据保存在哪'), findsOneWidget);
-    expect(find.textContaining('按「保存」即写入本机安全存储'), findsOneWidget);
-    expect(find.textContaining('可在「管理 API」里随时删除'), findsOneWidget);
-    expect(find.textContaining('不经过团队服务器'), findsOneWidget);
+    expect(find.textContaining('Your current question'), findsOneWidget);
+    expect(find.text('Excluded from the record summary'), findsOneWidget);
+    expect(
+      find.textContaining('Raw records and individual timestamps'),
+      findsOneWidget,
+    );
+    expect(find.text('Credential storage'), findsOneWidget);
+    expect(
+      find.textContaining('Save stores your configuration'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Delete it at any time in Manage APIs'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('never to a team server'), findsOneWidget);
     expect(find.textContaining('摘要经团队网关转发给模型'), findsNothing);
   });
 }

@@ -62,7 +62,9 @@ class SystemTtsSpeaker implements AssistantSpeaker {
     // 读完、被停、出错都必须收尾：否则界面会一直停在「停止」状态。
     _tts.setCompletionHandler(() => _finishUtterance(done));
     _tts.setCancelHandler(() => _finishUtterance(done));
-    _tts.setErrorHandler((_) => _finishUtterance(done, StateError('TTS 引擎报错')));
+    _tts.setErrorHandler(
+      (_) => _finishUtterance(done, StateError('TTS engine error')),
+    );
     // 总是替换进度回调，避免沿用上一段的监听者。
     _tts.setProgressHandler((_, _, end, _) {
       if (identical(_utterance, done)) onProgress?.call(end);
@@ -75,7 +77,7 @@ class SystemTtsSpeaker implements AssistantSpeaker {
         );
     _watchdog = Timer(deadline, () {
       if (!identical(_utterance, done)) return;
-      _finishUtterance(done, TimeoutException('TTS 未回报朗读结束'));
+      _finishUtterance(done, TimeoutException('TTS did not report completion'));
       unawaited(_stopEngine());
     });
     unawaited(_startUtterance(text, done));
@@ -95,18 +97,20 @@ class SystemTtsSpeaker implements AssistantSpeaker {
 
   Future<void> _configureAndSpeak(String text, Completer<void> done) async {
     // 每一步之后确认仍是同一段；超时/停止后迟到的平台响应不能再开始朗读。
-    final language = await _tts.setLanguage('zh-CN');
+    final language = await _tts.setLanguage('en-US');
     if (!identical(_utterance, done)) return;
-    if (language != 1) throw StateError('TTS 不支持中文朗读');
+    if (language != 1) {
+      throw StateError('An English text-to-speech voice is unavailable');
+    }
     final rate = await _tts.setSpeechRate(_rate);
     if (!identical(_utterance, done)) return;
-    if (rate != 1) throw StateError('TTS 语速设置失败');
+    if (rate != 1) throw StateError('TTS speed could not be set');
     final pitch = await _tts.setPitch(_pitch);
     if (!identical(_utterance, done)) return;
-    if (pitch != 1) throw StateError('TTS 音调设置失败');
+    if (pitch != 1) throw StateError('TTS pitch could not be set');
     final accepted = await _tts.speak(text);
     if (!identical(_utterance, done)) return;
-    if (accepted != 1) throw StateError('TTS 未接受朗读请求');
+    if (accepted != 1) throw StateError('TTS did not accept the request');
   }
 
   void _finishUtterance(Completer<void>? done, [Object? error]) {

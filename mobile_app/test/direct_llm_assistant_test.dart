@@ -63,9 +63,9 @@ void main() {
       'https://api.example.com/v1/chat/completions',
     );
     expect(
-      providerFor('https://api.example.com/v1/chat/completions')
-          .endpoint
-          .toString(),
+      providerFor(
+        'https://api.example.com/v1/chat/completions',
+      ).endpoint.toString(),
       'https://api.example.com/v1/chat/completions',
     );
   });
@@ -75,7 +75,9 @@ void main() {
     Future<void> Function(String) use,
   ) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    final subscription = server.listen((request) => unawaited(handler(request)));
+    final subscription = server.listen(
+      (request) => unawaited(handler(request)),
+    );
     try {
       // Widget binding installs a fake HTTP client globally; these contract
       // tests intentionally use a real loopback socket in this zone only.
@@ -89,45 +91,49 @@ void main() {
     }
   }
 
-  test('the request carries the user key and the answer comes back trimmed',
-      () async {
-    await withServer(
-      (request) async {
-        expect(
-          request.headers.value(HttpHeaders.authorizationHeader),
-          'Bearer user-private-key',
-        );
-        final data = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
-        expect(data['model'], 'user-model');
-        expect(data['temperature'], 0);
-        final messages = data['messages'] as List;
-        expect(messages, hasLength(2));
-        expect((messages[0] as Map)['role'], 'system');
-        expect((messages[0] as Map)['content'], contains('不要诊断'));
-        expect((messages[1] as Map)['role'], 'user');
-        expect(
-          jsonDecode((messages[1] as Map)['content'] as String)['context'],
-          context.toJson(),
-        );
-        request.response.headers.contentType = ContentType.json;
-        request.response.write(
-          jsonEncode({
-            'choices': [
-              {
-                'message': {'content': '  近 7 天共 8 次使用动作。  '},
-              },
-            ],
-          }),
-        );
-        await request.response.close();
-      },
-      (baseUrl) async {
-        final answer = await providerFor(baseUrl)
-            .reply(question: '最近怎么样？', context: context);
-        expect(answer, '近 7 天共 8 次使用动作。');
-      },
-    );
-  });
+  test(
+    'the request carries the user key and the answer comes back trimmed',
+    () async {
+      await withServer(
+        (request) async {
+          expect(
+            request.headers.value(HttpHeaders.authorizationHeader),
+            'Bearer user-private-key',
+          );
+          final data =
+              jsonDecode(await utf8.decoder.bind(request).join()) as Map;
+          expect(data['model'], 'user-model');
+          expect(data['temperature'], 0);
+          final messages = data['messages'] as List;
+          expect(messages, hasLength(2));
+          expect((messages[0] as Map)['role'], 'system');
+          expect((messages[0] as Map)['content'], contains('Do not diagnose'));
+          expect((messages[1] as Map)['role'], 'user');
+          expect(
+            jsonDecode((messages[1] as Map)['content'] as String)['context'],
+            context.toJson(),
+          );
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(
+            jsonEncode({
+              'choices': [
+                {
+                  'message': {'content': '  近 7 天共 8 次使用动作。  '},
+                },
+              ],
+            }),
+          );
+          await request.response.close();
+        },
+        (baseUrl) async {
+          final answer = await providerFor(
+            baseUrl,
+          ).reply(question: '最近怎么样？', context: context);
+          expect(answer, '近 7 天共 8 次使用动作。');
+        },
+      );
+    },
+  );
 
   test('failures never leak the key or the upstream body', () async {
     for (final status in [400, 401, 403, 404, 429, 500]) {
@@ -139,8 +145,7 @@ void main() {
         },
         (baseUrl) async {
           try {
-            await providerFor(baseUrl)
-                .reply(question: '次数？', context: context);
+            await providerFor(baseUrl).reply(question: '次数？', context: context);
             fail('Expected a sanitized failure for $status');
           } on AssistantException catch (error) {
             expect(error.message, isNot(contains('user-private-key')));
@@ -162,7 +167,7 @@ void main() {
         isA<AssistantException>().having(
           (error) => error.message,
           'message',
-          contains('API Key'),
+          contains('API key'),
         ),
       ),
     );
@@ -176,7 +181,7 @@ void main() {
         isA<AssistantException>().having(
           (error) => error.message,
           'message',
-          contains('模型名称'),
+          contains('model name'),
         ),
       ),
     );
@@ -227,16 +232,20 @@ void main() {
           'event-stream',
           charset: 'utf-8',
         );
-        request.response.write('data: {"choices":[{"delta":{"content":"近 7 天"}}]}\n\n');
-        request.response.write('data: {"choices":[{"delta":{"content":"共 8 次。"}}]}\n\n');
+        request.response.write(
+          'data: {"choices":[{"delta":{"content":"Last 7 days"}}]}\n\n',
+        );
+        request.response.write(
+          'data: {"choices":[{"delta":{"content":"共 8 次。"}}]}\n\n',
+        );
         request.response.write('data: [DONE]\n\n');
         await request.response.close();
       },
       (baseUrl) async {
-        final chunks = await providerFor(baseUrl)
-            .replyStream(question: '最近怎么样？', context: context)
-            .toList();
-        expect(chunks, ['近 7 天', '共 8 次。']);
+        final chunks = await providerFor(
+          baseUrl,
+        ).replyStream(question: '最近怎么样？', context: context).toList();
+        expect(chunks, ['Last 7 days', '共 8 次。']);
       },
     );
   });
@@ -417,7 +426,9 @@ void main() {
           charset: 'utf-8',
         );
         request.response.bufferOutput = false;
-        request.response.write('data: {"choices":[{"delta":{"content":"已收到正文"}}]}\n\n');
+        request.response.write(
+          'data: {"choices":[{"delta":{"content":"已收到正文"}}]}\n\n',
+        );
         await request.response.flush();
         await Future<void>.delayed(const Duration(milliseconds: 600));
         await request.response.close();
@@ -431,13 +442,16 @@ void main() {
         );
         final received = <String>[];
         try {
-          await for (final text in provider.replyStream(question: '说明', context: context)) {
+          await for (final text in provider.replyStream(
+            question: '说明',
+            context: context,
+          )) {
             received.add(text);
           }
           fail('A stalled response must time out.');
         } on AssistantException catch (error) {
           expect(received, ['已收到正文']);
-          expect(error.message, contains('超时'));
+          expect(error.message, contains('timed out'));
           expect(error.message, isNot(contains('user-private-key')));
         }
       },
@@ -480,7 +494,7 @@ void main() {
             fail('A bounded client must reject excessive answer content.');
           } on AssistantException catch (error) {
             expect(received, ['已经收到']);
-            expect(error.message, contains('接收上限'));
+            expect(error.message, contains('receive limit'));
             expect(error.message, isNot(contains('user-private-key')));
           }
         },
@@ -526,7 +540,9 @@ void main() {
           'event-stream',
           charset: 'utf-8',
         );
-        request.response.write('data: {"choices":[{"delta":{"content":"完整"}}]}\n\n');
+        request.response.write(
+          'data: {"choices":[{"delta":{"content":"完整"}}]}\n\n',
+        );
         request.response.write('data: [DONE]\n\n');
         await request.response.close();
       },
@@ -597,9 +613,9 @@ void main() {
 
     try {
       await HttpOverrides.runWithHttpOverrides(() async {
-        final subscription = providerFor('http://127.0.0.1:${server.port}/v1')
-            .replyStream(question: '最近怎么样？', context: context)
-            .listen((_) {});
+        final subscription = providerFor(
+          'http://127.0.0.1:${server.port}/v1',
+        ).replyStream(question: '最近怎么样？', context: context).listen((_) {});
         // 第一块到了就说明连接是活的——取消之前得先确认这一点，否则这条测试
         // 什么也没证明。
         await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -654,7 +670,7 @@ void main() {
                   'An explicit upstream error must not complete successfully.',
                 );
               } on AssistantException catch (error) {
-                expect(error.message, contains('回答未完成'));
+                expect(error.message, contains('failed before completing'));
                 expect(error.message, isNot(contains('user-private-key')));
                 expect(error.message, isNot(contains('private')));
                 expect(received, sendPartial ? ['半截回答'] : isEmpty);
@@ -666,65 +682,70 @@ void main() {
     }
   }
 
-  test('streaming falls back to one chunk when the server returns plain JSON',
-      () async {
-    await withServer(
-      (request) async {
-        request.response.headers.contentType = ContentType.json;
-        request.response.write(
-          jsonEncode({
-            'choices': [
-              {
-                'message': {'content': '近 7 天共 8 次使用动作。'},
-              },
-            ],
-          }),
-        );
-        await request.response.close();
-      },
-      (baseUrl) async {
-        final chunks = await providerFor(baseUrl)
-            .replyStream(question: '最近怎么样？', context: context)
-            .toList();
-        expect(chunks, ['近 7 天共 8 次使用动作。']);
-      },
-    );
-  });
-
-  test('streaming sends multi-turn history as messages before the question',
-      () async {
-    await withServer(
-      (request) async {
-        final data = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
-        final messages = data['messages'] as List;
-        expect(messages, hasLength(4));
-        expect((messages[0] as Map)['role'], 'system');
-        expect((messages[0] as Map)['content'], contains('更早的几轮问答'));
-        expect((messages[1] as Map), {'role': 'user', 'content': '上一条问题'});
-        expect((messages[2] as Map), {
-          'role': 'assistant',
-          'content': '上一条回答',
-        });
-        expect((messages[3] as Map)['role'], 'user');
-        request.response.headers.contentType = ContentType(
-          'text',
-          'event-stream',
-        );
-        request.response.write('data: [DONE]\n\n');
-        await request.response.close();
-      },
-      (baseUrl) async {
-        await providerFor(baseUrl)
-            .replyStream(
-              question: '那今天呢？',
-              context: context,
-              history: const [
-                (role: 'user', text: '上一条问题'),
-                (role: 'assistant', text: '上一条回答'),
+  test(
+    'streaming falls back to one chunk when the server returns plain JSON',
+    () async {
+      await withServer(
+        (request) async {
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(
+            jsonEncode({
+              'choices': [
+                {
+                  'message': {'content': '近 7 天共 8 次使用动作。'},
+                },
               ],
-            )
-            .drain<void>();
-      },
-    );
-  });
+            }),
+          );
+          await request.response.close();
+        },
+        (baseUrl) async {
+          final chunks = await providerFor(
+            baseUrl,
+          ).replyStream(question: '最近怎么样？', context: context).toList();
+          expect(chunks, ['近 7 天共 8 次使用动作。']);
+        },
+      );
+    },
+  );
+
+  test(
+    'streaming sends multi-turn history as messages before the question',
+    () async {
+      await withServer(
+        (request) async {
+          final data =
+              jsonDecode(await utf8.decoder.bind(request).join()) as Map;
+          final messages = data['messages'] as List;
+          expect(messages, hasLength(4));
+          expect((messages[0] as Map)['role'], 'system');
+          expect((messages[0] as Map)['content'], contains('Earlier turns'));
+          expect((messages[1] as Map), {'role': 'user', 'content': '上一条问题'});
+          expect((messages[2] as Map), {
+            'role': 'assistant',
+            'content': '上一条回答',
+          });
+          expect((messages[3] as Map)['role'], 'user');
+          request.response.headers.contentType = ContentType(
+            'text',
+            'event-stream',
+          );
+          request.response.write('data: [DONE]\n\n');
+          await request.response.close();
+        },
+        (baseUrl) async {
+          await providerFor(baseUrl)
+              .replyStream(
+                question: '那今天呢？',
+                context: context,
+                history: const [
+                  (role: 'user', text: '上一条问题'),
+                  (role: 'assistant', text: '上一条回答'),
+                ],
+              )
+              .drain<void>();
+        },
+      );
+    },
+  );
 }

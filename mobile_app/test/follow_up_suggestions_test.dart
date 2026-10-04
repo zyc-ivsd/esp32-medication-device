@@ -14,29 +14,38 @@ void main() {
   test('每个追问都命中本地分支、不落到兜底', () async {
     final provider = MockAssistantProvider();
     final topics = [
-      '今天用了几次？',
-      '最近有异常吗？',
-      '查看最近一周',
-      '数据是最新的吗？',
-      '设备时间对吗？',
-      '空白那几天怎么看？',
+      'How many uses today?',
+      'Any invalid uses recently?',
+      'Show the last week',
+      'Is my data up to date?',
+      'Is the device clock correct?',
+      'What do days without records mean?',
     ];
     final followUps = <String>{};
     for (final topic in topics) {
       followUps.addAll(followUpsFor(topic));
     }
     for (final question in followUps) {
-      final answer = await provider.reply(question: question, context: _context);
+      final answer = await provider.reply(
+        question: question,
+        context: _context,
+      );
       expect(
         answer,
-        isNot(contains('本地模式只按固定规则解释')),
+        isNot(contains('Local uses fixed rules')),
         reason: '「$question」落到了兜底',
       );
     }
   });
 
   test('按问句路由到对应主题', () {
-    expect(followUpsFor('今天用了几次？'), contains('查看最近一周'));
-    expect(followUpsFor('空白那几天怎么看？'), contains('设备时间对吗？'));
+    expect(
+      followUpsFor('How many uses today?'),
+      contains('Show the last week'),
+    );
+    expect(
+      followUpsFor('What do days without records mean?'),
+      contains('Is the device clock correct?'),
+    );
   });
 }

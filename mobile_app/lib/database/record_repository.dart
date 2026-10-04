@@ -7,7 +7,8 @@ class RecordConflictException implements Exception {
   final String deviceId;
   final int seq;
   @override
-  String toString() => '同一设备序号的数据不同：$deviceId / $seq';
+  String toString() =>
+      'Conflicting payload for device sequence: $deviceId / $seq';
 }
 
 /// B calls saveValidatedRecord AFTER length/version/CRC validation.
@@ -24,8 +25,11 @@ abstract class RecordRepository {
   /// Persisted separately from the greatest observed sequence. B advances this
   /// only after verifying a continuous saved range and the device's SYNC_END.
   Future<int?> readSyncCursor(String deviceId);
-  Future<void> advanceSyncCursor(String deviceId, int seq,
-      {int? firstSequence});
+  Future<void> advanceSyncCursor(
+    String deviceId,
+    int seq, {
+    int? firstSequence,
+  });
 
   Future<void> close();
 }

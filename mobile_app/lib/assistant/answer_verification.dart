@@ -6,7 +6,8 @@ import 'rules/observation_rules.dart';
 /// 只认**结尾**那一行：模型不一定听话，可能忘了写，也可能把标记写在正文中间，
 /// 那种情况宁可当没写，也不能把正文从中间截断。
 final RegExp _sourceMarker = RegExp(
-  r'\n?[ \t　]*【来源】[ \t　]*[:：]?[ \t　]*(AI\s*知识|记录统计)[。.]?[ \t　]*$',
+  r'\n?[ \t　]*(?:\[Source\]|【来源】)[ \t　]*[:：]?[ \t　]*(AI\s*knowledge|records|AI\s*知识|记录统计)[。.]?[ \t　]*$',
+  caseSensitive: false,
 );
 
 /// 通用知识回答末尾必须补的说明。
@@ -14,13 +15,14 @@ final RegExp _sourceMarker = RegExp(
 /// 这句话由 App 自己写，不采用模型那句：模型可能只写「我不是医生」这类模糊说法，
 /// 也可能干脆不写。用户需要知道的是具体这一件事——**这条信息不是来自你的设备记录**。
 const remoteKnowledgeNote =
-    '（以下是 AI 的通用健康知识，不是你的设备记录；涉及健康决策请以医生意见为准。）';
+    '(General AI health information, not your device records. Consult a clinician for health decisions.)';
 
 /// 流没收结束标记就断了，回答末尾补的说明。
 ///
 /// 不发 `[DONE]`、直接关连接的服务端不算少见，内容往往其实是完整的，所以**不丢
 /// 回答**；但也无法据此确认收全了，得如实提醒一句，别让用户把半截当成完整结果。
-const remoteIncompleteNote = '（这次回答没有收到结束标记，可能不完整，请核对后再采用。）';
+const remoteIncompleteNote =
+    '(The end of this answer was not confirmed. It may be incomplete; check it before relying on it.)';
 
 /// 拆掉来源标记之后的回答。
 class ParsedRemoteAnswer {
@@ -43,7 +45,7 @@ ParsedRemoteAnswer parseRemoteAnswer(String answer) {
   final marker = (match.group(1) ?? '').replaceAll(' ', '');
   return ParsedRemoteAnswer(
     answer.substring(0, match.start).trimRight(),
-    isKnowledge: marker == 'AI知识',
+    isKnowledge: marker == 'AI知识' || marker.toLowerCase() == 'aiknowledge',
   );
 }
 
@@ -61,8 +63,9 @@ ParsedRemoteAnswer parseRemoteAnswer(String answer) {
 
 /// 日期与时间串要先摘掉，否则「最后同步于 2026-09-23 08:00」里的数字会被当成
 /// 凭空出现的统计结论。小数秒也要吃掉：`DateTime.toString()` 会给出 `.000`。
-final RegExp _dateTimePattern =
-    RegExp(r'\d{4}-\d{1,2}-\d{1,2}([ T]\d{1,2}:\d{2}(:\d{2})?(\.\d+)?)?');
+final RegExp _dateTimePattern = RegExp(
+  r'\d{4}-\d{1,2}-\d{1,2}([ T]\d{1,2}:\d{2}(:\d{2})?(\.\d+)?)?',
+);
 
 final RegExp _integerPattern = RegExp(r'\d+');
 
@@ -89,8 +92,8 @@ List<int> numbersNotInSummary(
 /// 措辞必须是非结论性的：我们不替模型改口，也不重复一遍「以摘要为准」之外的判断。
 String? mismatchNotice(List<int> suspicious) {
   if (suspicious.isEmpty) return null;
-  return '（提醒：本次回答里的 ${suspicious.join('、')} 与当前统计摘要对不上，'
-      '请以概览页的数字为准。）';
+  return '(Notice: ${suspicious.join('、')} does not match the current record summary. '
+      'Use the numbers on the Overview page.)';
 }
 
 /// 在线回答的安全网：对不上时追加一句提醒，出任何问题都原样返回回答。
@@ -127,8 +130,10 @@ Set<int> _allowedNumbers(
     context.dailyCounts.length,
     ...context.dailyCounts,
   };
-  for (final observation
-      in evaluateObservations(context, now: now ?? DateTime.now())) {
+  for (final observation in evaluateObservations(
+    context,
+    now: now ?? DateTime.now(),
+  )) {
     allowed.addAll(numbersInText(observation.text));
   }
   allowed.addAll(extra);
@@ -150,7 +155,10 @@ Set<int> numbersInText(String text) {
 
 /// 回答里「在统计语境下」出现的整数：后面紧跟「次 / 条 / 天 / 日」才算一条
 /// 统计结论。闲聊里的年龄、时长、金额等数字不算，避免把正常回答误判成编造。
-final RegExp _statClaimPattern = RegExp(r'(\d+)\s*[次条天日]');
+final RegExp _statClaimPattern = RegExp(
+  r'(\d+)\s*(?:[次条天日]|(?:uses?|records?|times?|days?)\b)',
+  caseSensitive: false,
+);
 
 Set<int> statClaimsInText(String text) {
   final claims = <int>{};

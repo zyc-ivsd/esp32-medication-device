@@ -22,8 +22,7 @@ import '../models/assistant_context.dart';
 /// 页面在在线模式下优先走流式，让文字边出边显示。
 ///
 /// 边界与风险见 `docs/assistant-model-access.md`。
-class DirectLlmAssistantProvider
-    implements StreamingAssistantProvider {
+class DirectLlmAssistantProvider implements StreamingAssistantProvider {
   DirectLlmAssistantProvider({
     required String baseUrl,
     required this.apiKey,
@@ -33,10 +32,12 @@ class DirectLlmAssistantProvider
   }) : endpoint = validateBaseUrl(baseUrl, allowLocalHttp: allowLocalHttp) {
     // 在构造时报错，设置对话框才能立即提示，而不是等用户按下发送。
     if (apiKey.trim().isEmpty) {
-      throw const AssistantException('请先填写模型服务的 API Key。');
+      throw const AssistantException('Enter your model service API key first.');
     }
     if (model.trim().isEmpty) {
-      throw const AssistantException('请先填写模型名称，例如 deepseek-chat。');
+      throw const AssistantException(
+        'Enter a model name, for example deepseek-chat.',
+      );
     }
   }
 
@@ -68,20 +69,24 @@ class DirectLlmAssistantProvider
         uri.hasQuery ||
         uri.hasFragment) {
       throw const AssistantException(
-          '请输入完整的模型服务地址，例如 https://api.deepseek.com/v1。');
+        'Enter a complete model service URL, for example https://api.deepseek.com/v1.',
+      );
     }
-    final localHttp = allowLocalHttp &&
+    final localHttp =
+        allowLocalHttp &&
         uri.scheme == 'http' &&
         const ['127.0.0.1', 'localhost', '10.0.2.2'].contains(uri.host);
     if (uri.scheme != 'https' && !localHttp) {
-      throw const AssistantException('模型服务地址需要 HTTPS；调试版仅允许本机 HTTP。');
+      throw const AssistantException(
+        'The model service requires HTTPS. Debug builds allow HTTP only on localhost.',
+      );
     }
     // 用户可能已经填了完整路径，也可能只填到 /v1，两种都接受且只补一次。
     final path = uri.path.endsWith(_chatPath)
         ? uri.path
         : uri.path.endsWith('/')
-            ? '${uri.path}chat/completions'
-            : '${uri.path}$_chatPath';
+        ? '${uri.path}chat/completions'
+        : '${uri.path}$_chatPath';
     return uri.replace(path: path);
   }
 
@@ -93,7 +98,7 @@ class DirectLlmAssistantProvider
   }) async {
     final trimmed = question.trim();
     if (trimmed.isEmpty || trimmed.length > maxQuestionLength) {
-      throw const AssistantException('请输入 1–1000 字的问题。');
+      throw const AssistantException('Enter a question of 1–1000 characters.');
     }
     final client = HttpClient()..connectionTimeout = timeout;
     try {
@@ -101,15 +106,25 @@ class DirectLlmAssistantProvider
     } on AssistantException {
       rethrow;
     } on TimeoutException {
-      throw const AssistantException('模型服务响应超时，请稍后重试或切回本地规则。');
+      throw const AssistantException(
+        'The model service timed out. Try again or switch to Local.',
+      );
     } on SocketException {
-      throw const AssistantException('无法连接模型服务，请检查地址和网络。');
+      throw const AssistantException(
+        'Cannot connect to the model service. Check the URL and network.',
+      );
     } on HandshakeException {
-      throw const AssistantException('模型服务证书验证失败，请检查服务地址。');
+      throw const AssistantException(
+        'The service certificate could not be verified. Check the URL.',
+      );
     } on FormatException {
-      throw const AssistantException('模型服务返回格式不正确。');
+      throw const AssistantException(
+        'The model service returned an invalid response.',
+      );
     } on HttpException {
-      throw const AssistantException('模型服务连接中断，请重试。');
+      throw const AssistantException(
+        'The connection was interrupted. Please try again.',
+      );
     } finally {
       client.close(force: true);
     }
@@ -126,7 +141,7 @@ class DirectLlmAssistantProvider
     final trimmed = question.trim();
     if (trimmed.isEmpty || trimmed.length > maxQuestionLength) {
       return Stream<String>.error(
-        const AssistantException('请输入 1–1000 字的问题。'),
+        const AssistantException('Enter a question of 1–1000 characters.'),
       );
     }
     final client = HttpClient()..connectionTimeout = timeout;
@@ -164,19 +179,41 @@ class DirectLlmAssistantProvider
         await emitError(error);
       } on TimeoutException {
         await emitError(
-          const AssistantException('模型服务响应超时，请稍后重试或切回本地规则。'),
+          const AssistantException(
+            'The model service timed out. Try again or switch to Local.',
+          ),
         );
       } on SocketException {
-        await emitError(const AssistantException('无法连接模型服务，请检查地址和网络。'));
+        await emitError(
+          const AssistantException(
+            'Cannot connect to the model service. Check the URL and network.',
+          ),
+        );
       } on HandshakeException {
-        await emitError(const AssistantException('模型服务证书验证失败，请检查服务地址。'));
+        await emitError(
+          const AssistantException(
+            'The service certificate could not be verified. Check the URL.',
+          ),
+        );
       } on FormatException {
-        await emitError(const AssistantException('模型服务返回格式不正确。'));
+        await emitError(
+          const AssistantException(
+            'The model service returned an invalid response.',
+          ),
+        );
       } on HttpException {
-        await emitError(const AssistantException('模型服务连接中断，请重试。'));
+        await emitError(
+          const AssistantException(
+            'The connection was interrupted. Please try again.',
+          ),
+        );
       } on StateError {
         // 自己关掉连接后（取消）继续读流会抛这个：连接没了，不是上游的问题。
-        await emitError(const AssistantException('模型服务连接中断，请重试。'));
+        await emitError(
+          const AssistantException(
+            'The connection was interrupted. Please try again.',
+          ),
+        );
       } finally {
         client.close(force: true);
       }
@@ -205,8 +242,11 @@ class DirectLlmAssistantProvider
       for (final turn in history) {'role': turn.role, 'content': turn.text},
       {
         'role': 'user',
-        'content': assistantUserPayload(question, context,
-            references: references),
+        'content': assistantUserPayload(
+          question,
+          context,
+          references: references,
+        ),
       },
     ],
   };
@@ -223,21 +263,23 @@ class DirectLlmAssistantProvider
     request.headers.contentType = ContentType.json;
     request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $apiKey');
     request.write(
-      jsonEncode(
-        _body(question, context, references, const [], stream: false),
-      ),
+      jsonEncode(_body(question, context, references, const [], stream: false)),
     );
     final response = await request.close().timeout(timeout);
     if (response.statusCode != HttpStatus.ok) {
       throw AssistantException(_statusMessage(response.statusCode));
     }
     if (response.headers.contentType?.mimeType != 'application/json') {
-      throw const AssistantException('模型服务返回格式不正确。');
+      throw const AssistantException(
+        'The model service returned an invalid response.',
+      );
     }
     final bytes = <int>[];
     await for (final chunk in response.timeout(timeout)) {
       if (bytes.length + chunk.length > maxResponseBytes) {
-        throw const AssistantException('模型回复过长，请缩小问题范围后重试。');
+        throw const AssistantException(
+          'The response exceeds the receive limit. Ask in smaller parts.',
+        );
       }
       bytes.addAll(chunk);
     }
@@ -259,9 +301,7 @@ class DirectLlmAssistantProvider
     request.headers.contentType = ContentType.json;
     request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $apiKey');
     request.write(
-      jsonEncode(
-        _body(question, context, references, history, stream: true),
-      ),
+      jsonEncode(_body(question, context, references, history, stream: true)),
     );
     final response = await request.close().timeout(timeout);
     if (response.statusCode != HttpStatus.ok) {
@@ -278,7 +318,9 @@ class DirectLlmAssistantProvider
     final bytes = <int>[];
     await for (final chunk in response.timeout(timeout)) {
       if (bytes.length + chunk.length > maxResponseBytes) {
-        throw const AssistantException('模型回复过长，请缩小问题范围后重试。');
+        throw const AssistantException(
+          'The response exceeds the receive limit. Ask in smaller parts.',
+        );
       }
       bytes.addAll(chunk);
     }
@@ -309,13 +351,17 @@ class DirectLlmAssistantProvider
     await for (final chunk in response.timeout(timeout)) {
       total += chunk.length;
       if (total > maxStreamBytes) {
-        throw const AssistantException('模型响应数据超过单次接收上限，请分段提问。');
+        throw const AssistantException(
+          'The response exceeds the receive limit. Ask in smaller parts.',
+        );
       }
       buffer.addAll(chunk);
       var newline = buffer.indexOf(0x0A);
       while (newline >= 0) {
         if (newline > maxSseLineBytes) {
-          throw const AssistantException('模型服务返回的数据包过大，请重试。');
+          throw const AssistantException(
+            'A response packet is too large. Please try again.',
+          );
         }
         final line = utf8.decode(
           buffer.sublist(0, newline),
@@ -335,7 +381,9 @@ class DirectLlmAssistantProvider
         newline = buffer.indexOf(0x0A);
       }
       if (buffer.length > maxSseLineBytes) {
-        throw const AssistantException('模型服务返回的数据包过大，请重试。');
+        throw const AssistantException(
+          'A response packet is too large. Please try again.',
+        );
       }
     }
     if (buffer.isNotEmpty) {
@@ -373,7 +421,9 @@ class DirectLlmAssistantProvider
       // HTTP 200 的 SSE 也可能通过 error 事件报告失败。不能把它当作空增量
       // 忽略，否则已经收到的半截文字会被保存成成功回答；不回显上游内容。
       if (data['error'] != null) {
-        throw const AssistantException('模型服务中途出错，回答未完成，请重试。');
+        throw const AssistantException(
+          'The model service failed before completing the answer. Please try again.',
+        );
       }
       final choices = data['choices'];
       if (choices is! List || choices.isEmpty || choices.first is! Map) {
@@ -392,40 +442,47 @@ class DirectLlmAssistantProvider
   }
 
   static String _statusMessage(int statusCode) => switch (statusCode) {
-    400 || 413 => '模型服务拒绝了请求，请检查模型名是否可用。',
-    401 || 403 => 'API Key 无效，或该 Key 无权访问所选模型。',
-    404 => '模型服务地址或模型名不正确，请检查后重试。',
-    429 => '模型服务繁忙或额度不足，请稍后重试。',
-    _ => '模型服务暂时不可用，请稍后重试或切回本地规则。',
+    400 || 413 => 'The service rejected the request. Check the model name.',
+    401 || 403 => 'Your API key is invalid or cannot access this model.',
+    404 => 'Check the model service URL and model name.',
+    429 => 'The service is busy or its quota is exhausted. Try again later.',
+    _ => 'The model service is unavailable. Try again or switch to Local.',
   };
 
   static void _checkAnswerSize(int bytes) {
     if (bytes > maxAnswerBytes) {
-      throw const AssistantException('回答超过单次接收上限，请分段提问。');
+      throw const AssistantException(
+        'The answer exceeds the receive limit. Ask in smaller parts.',
+      );
     }
   }
 
   /// 正常关闭传输与模型完整回答是两件事。输出额度耗尽时仍可能收到 [DONE]。
-  static String? _incompleteReason(Object? finishReason) =>
-      switch (finishReason) {
-        null || 'stop' => null,
-        'length' => '模型服务已达到本次输出上限，回答未完成，请分段提问或重试。',
-        'content_filter' => '模型服务因内容限制停止了回答，回答未完成，请调整问题后重试。',
-        _ => '模型服务提前停止了回答，回答未完成，请重试。',
-      };
+  static String? _incompleteReason(
+    Object? finishReason,
+  ) => switch (finishReason) {
+    null || 'stop' => null,
+    'length' =>
+      'The model reached its output limit. The answer is incomplete; ask in smaller parts or retry.',
+    'content_filter' =>
+      'The service stopped the answer due to a content restriction. Rephrase your question or retry.',
+    _ => 'The service stopped before completing the answer. Please try again.',
+  };
 
   static String _extractAnswer(dynamic data, {StreamCompletion? completion}) {
     if (data is! Map<String, dynamic>) {
-      throw const AssistantException('模型服务返回格式不正确。');
+      throw const AssistantException(
+        'The model service returned an invalid response.',
+      );
     }
     final choices = data['choices'];
     if (choices is! List || choices.isEmpty || choices.first is! Map) {
-      throw const AssistantException('模型服务没有返回回答。');
+      throw const AssistantException('The model service returned no answer.');
     }
     final message = (choices.first as Map)['message'];
     final content = message is Map ? message['content'] : null;
     if (content is! String || content.trim().isEmpty) {
-      throw const AssistantException('模型服务没有返回文字。');
+      throw const AssistantException('The model service returned no text.');
     }
     _checkAnswerSize(utf8.encode(content).length);
     final reason = _incompleteReason((choices.first as Map)['finish_reason']);

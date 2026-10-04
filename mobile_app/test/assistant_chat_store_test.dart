@@ -52,7 +52,7 @@ void main() {
   test('时间戳或来源认不出来时，消息本身仍然保留', () {
     final kept = ChatMessage.fromJson({
       'role': 'system',
-      'text': '已切回本地摘要，不联网。',
+      'text': 'Switched to Local. No network connection is used.',
       'created_at': '昨天',
       'source': '猜的',
     });
@@ -60,11 +60,14 @@ void main() {
     expect(kept!.isNotice, isTrue);
     expect(kept.isUser, isFalse);
     expect(kept.source, isNull);
-    expect(kept.text, '已切回本地摘要，不联网。');
+    expect(kept.text, 'Switched to Local. No network connection is used.');
   });
 
   test('用户提问不带来源', () {
-    final restored = ChatMessage.fromJson({'role': 'user', 'text': '今天用了几次？'});
+    final restored = ChatMessage.fromJson({
+      'role': 'user',
+      'text': 'How many uses today?',
+    });
     expect(restored!.isUser, isTrue);
     expect(restored.source, isNull);
   });

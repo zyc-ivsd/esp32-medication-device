@@ -65,41 +65,40 @@ class AssistantProfile {
 
   /// 保存时如果用户没填名字，用这个兜底。
   String autoName() {
-    if (mode == OnlineAssistantMode.gateway) return '团队网关';
-    return model.isNotEmpty ? model : '我的模型';
+    if (mode == OnlineAssistantMode.gateway) return 'Team gateway';
+    return model.isNotEmpty ? model : 'My model';
   }
 
   AssistantProfile withName(String value) => AssistantProfile(
-        id: id,
-        name: value,
-        mode: mode,
-        endpoint: endpoint,
-        accessToken: accessToken,
-        baseUrl: baseUrl,
-        apiKey: apiKey,
-        model: model,
-      );
+    id: id,
+    name: value,
+    mode: mode,
+    endpoint: endpoint,
+    accessToken: accessToken,
+    baseUrl: baseUrl,
+    apiKey: apiKey,
+    model: model,
+  );
 
   String get modeLabel =>
-      mode == OnlineAssistantMode.gateway ? '团队网关' : '我的模型';
+      mode == OnlineAssistantMode.gateway ? 'Team gateway' : 'My model';
 
   /// 控制台列表里的副标题：只说「发到哪」，不回显任何凭据。
   String get summary {
     if (mode == OnlineAssistantMode.gateway) {
-      return endpoint.isNotEmpty ? endpoint : '（未填写服务地址）';
+      return endpoint.isNotEmpty ? endpoint : '(Service address missing)';
     }
     final parts = [
       if (model.isNotEmpty) model,
       if (baseUrl.isNotEmpty) baseUrl,
     ];
-    return parts.isEmpty ? '（未填写模型服务）' : parts.join(' · ');
+    return parts.isEmpty ? '(Model service missing)' : parts.join(' · ');
   }
 
   /// 给用户确认「存的是哪一个」用，只露最后 4 位。
   String get maskedSecret {
-    final secret =
-        mode == OnlineAssistantMode.gateway ? accessToken : apiKey;
-    if (secret.isEmpty) return '未填写';
+    final secret = mode == OnlineAssistantMode.gateway ? accessToken : apiKey;
+    if (secret.isEmpty) return 'Not set';
     if (secret.length <= 4) return '••••';
     return '••••••${secret.substring(secret.length - 4)}';
   }
@@ -109,28 +108,28 @@ class AssistantProfile {
   /// 校验失败（地址不对、Key 为空）会抛 `AssistantException`，由调用方转成提示；
   /// 这里只做构造，不发任何网络请求。
   AssistantProvider toProvider() => switch (mode) {
-        OnlineAssistantMode.gateway => GatewayAssistantProvider(
-            endpoint: endpoint,
-            accessToken: accessToken,
-          ),
-        OnlineAssistantMode.ownModel => DirectLlmAssistantProvider(
-            baseUrl: baseUrl,
-            apiKey: apiKey,
-            model: model,
-          ),
-      };
+    OnlineAssistantMode.gateway => GatewayAssistantProvider(
+      endpoint: endpoint,
+      accessToken: accessToken,
+    ),
+    OnlineAssistantMode.ownModel => DirectLlmAssistantProvider(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      model: model,
+    ),
+  };
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'mode': mode.name,
-        // 下划线风格只为了和网关契约看起来一致；这些字段名不出本机。
-        'endpoint': endpoint,
-        'access_token': accessToken,
-        'base_url': baseUrl,
-        'api_key': apiKey,
-        'model': model,
-      };
+    'id': id,
+    'name': name,
+    'mode': mode.name,
+    // 下划线风格只为了和网关契约看起来一致；这些字段名不出本机。
+    'endpoint': endpoint,
+    'access_token': accessToken,
+    'base_url': baseUrl,
+    'api_key': apiKey,
+    'model': model,
+  };
 
   /// 解析单条档案；任何无法识别的输入都返回 null。
   ///
@@ -171,10 +170,7 @@ class AssistantProfile {
 /// 「点一下切在线」也就无从谈起。
 @immutable
 class AssistantCredentialState {
-  const AssistantCredentialState({
-    this.profiles = const [],
-    this.selectedId,
-  });
+  const AssistantCredentialState({this.profiles = const [], this.selectedId});
 
   final List<AssistantProfile> profiles;
   final String? selectedId;
@@ -196,10 +192,10 @@ class AssistantCredentialState {
       AssistantCredentialState(profiles: profiles, selectedId: id);
 
   Map<String, dynamic> toJson() => {
-        'version': 2,
-        'selected_id': selectedId,
-        'profiles': [for (final profile in profiles) profile.toJson()],
-      };
+    'version': 2,
+    'selected_id': selectedId,
+    'profiles': [for (final profile in profiles) profile.toJson()],
+  };
 
   /// 损坏、旧格式或空内容一律返回 [empty]，调用方不用区分这几种情况。
   static AssistantCredentialState fromJson(Object? data) {
@@ -236,7 +232,7 @@ class SecureAssistantCredentialsStore implements AssistantCredentialsStore {
   /// 若团队要改用 Jetpack Security 的 `EncryptedSharedPreferences`，先在实际
   /// 插件版本上确认参数名再打开，别凭记忆写。
   SecureAssistantCredentialsStore({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
   static const _stateKey = 'assistant_credentials_v2';
 
@@ -249,7 +245,9 @@ class SecureAssistantCredentialsStore implements AssistantCredentialsStore {
   Future<AssistantCredentialState> load() async {
     try {
       final raw = await _storage.read(key: _stateKey);
-      if (raw != null) return AssistantCredentialState.fromJson(jsonDecode(raw));
+      if (raw != null) {
+        return AssistantCredentialState.fromJson(jsonDecode(raw));
+      }
       return await _migrateLegacy();
     } catch (_) {
       // 读不出来（旧格式、解密失败）就当作没有配置过：控制台不该因此打不开。

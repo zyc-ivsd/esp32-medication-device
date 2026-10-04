@@ -40,7 +40,7 @@ class ReactiveBleTransport implements BleTransport {
       final sdk = await const MethodChannel(
         'org.igem.medication/platform',
       ).invokeMethod<int>('androidSdkInt');
-      if (sdk == null) throw StateError('无法读取 Android 版本');
+      if (sdk == null) throw StateError('Cannot read the Android version');
       final permissions = sdk >= 31
           ? [Permission.bluetoothScan, Permission.bluetoothConnect]
           : [Permission.locationWhenInUse];
@@ -74,7 +74,9 @@ class ReactiveBleTransport implements BleTransport {
     if (matches.isEmpty ||
         !matches.first.isNotifiable ||
         !matches.first.isWritableWithResponse) {
-      throw StateError('固件缺少原型 Write + Notify 特征，请刷入配套固件');
+      throw StateError(
+        'The firmware is missing the required Write + Notify characteristic. Install the matching firmware.',
+      );
     }
   }
 

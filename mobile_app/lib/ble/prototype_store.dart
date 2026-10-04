@@ -2,11 +2,11 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 import 'prototype_protocol.dart';
 
-/// Kept separate from the device event store: a button timestamp has no event
-/// type, pressure or confidence and cannot be turned into a medication event.
+/// Raw wire evidence is retained independently of the medication diary.
 abstract interface class PrototypeStore {
   Future<void> save(PrototypeRecord record);
   Future<List<PrototypeRecord>> readRecent();
+  Future<List<PrototypeRecord>> readAll();
   Future<void> close();
 }
 
@@ -44,7 +44,9 @@ class SqlitePrototypeStore implements PrototypeStore {
       );
       if (previous.isNotEmpty) {
         if (previous.single['raw_text'] != record.rawText) {
-          throw StateError('同一设备文件的内容改变，已停止确认，请检查固件是否覆盖文件');
+          throw StateError(
+            'Device file content changed. Check whether the firmware overwrote a file.',
+          );
         }
         return;
       }
@@ -75,5 +77,45 @@ class SqlitePrototypeStore implements PrototypeStore {
           .toList();
 
   @override
+  Future<List<PrototypeRecord>> readAll() async =>
+      (await _db.query('prototype_text', orderBy: 'received_at, file_id'))
+          .map(
+            (row) => PrototypeRecord(
+              deviceId: row['device_id'] as String,
+              fileId: row['file_id'] as String,
+              rawText: row['raw_text'] as String,
+              receivedAt: DateTime.parse(row['received_at'] as String),
+            ),
+          )
+          .toList();
+
+  @override
   Future<void> close() => _db.close();
+}
+
+/// ACK is sent by PrototypeSync only after both durable writes succeed. If a
+/// process stops between them, replay/backfill completes the projection safely.
+class RecordingPrototypeStore implements PrototypeStore {
+  RecordingPrototypeStore(this.rawStore, this.recordUse);
+  final PrototypeStore rawStore;
+  final Future<void> Function(PrototypeRecord) recordUse;
+
+  @override
+  Future<void> save(PrototypeRecord record) async {
+    await rawStore.save(record);
+    await recordUse(record);
+  }
+
+  Future<void> backfill() async {
+    for (final record in await rawStore.readAll()) {
+      await recordUse(record);
+    }
+  }
+
+  @override
+  Future<List<PrototypeRecord>> readRecent() => rawStore.readRecent();
+  @override
+  Future<List<PrototypeRecord>> readAll() => rawStore.readAll();
+  @override
+  Future<void> close() => rawStore.close();
 }

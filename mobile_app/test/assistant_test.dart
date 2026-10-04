@@ -32,10 +32,10 @@ void main() {
 
   test('mock assistant answers usage question', () async {
     final answer = await AssistantService().ask(
-      question: '今天用了几次？',
+      question: 'How many uses today?',
       context: context,
     );
 
-    expect(answer.text, contains('今天使用 2 次'));
+    expect(answer.text, contains('2 uses today'));
   });
 }

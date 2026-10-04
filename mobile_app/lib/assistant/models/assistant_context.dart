@@ -46,12 +46,12 @@ class AssistantContext {
 
   String toPromptSummary() {
     final syncText = lastSyncAt == null
-        ? '尚未同步'
-        : '最后同步于 ${lastSyncAt!.toLocal()}';
-    return '设备记录：共 $totalCount 条记录，'
-        '今天 $todayCount 次，近 7 天 $last7DaysCount 次，'
-        '近 7 天疑似无效记录 $invalidEventCount 条，$syncText。'
-        '时间未知 $unknownTimeCount 条、未来时间 $futureTimeCount 条不计入按日统计。'
-        '近 7 天逐日次数（最早一天在前，今天在最后）：${dailyCounts.join('、')}。';
+        ? 'Not synced yet'
+        : 'Last synced ${lastSyncAt!.toLocal()}';
+    return 'Device records: $totalCount saved records; '
+        '$todayCount uses today and $last7DaysCount uses in the last 7 days; '
+        '$invalidEventCount suspected invalid uses in the last 7 days; $syncText. '
+        '$unknownTimeCount unknown-time and $futureTimeCount future-time records are excluded from daily counts. '
+        'Daily uses for the last 7 days (oldest to today): ${dailyCounts.join(', ')}. ';
   }
 }

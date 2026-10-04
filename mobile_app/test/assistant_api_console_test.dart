@@ -32,10 +32,8 @@ class _MemoryStore implements AssistantCredentialsStore {
 /// 系统安全存储不可用的情况：必须报错，不能假装存下了。
 class _FailingStore implements AssistantCredentialsStore {
   @override
-  Future<AssistantCredentialState> load() async => const AssistantCredentialState(
-        profiles: [_gateway],
-        selectedId: 'g1',
-      );
+  Future<AssistantCredentialState> load() async =>
+      const AssistantCredentialState(profiles: [_gateway], selectedId: 'g1');
 
   @override
   Future<void> save(AssistantCredentialState state) async =>
@@ -47,7 +45,7 @@ class _FailingStore implements AssistantCredentialsStore {
 
 const _gateway = AssistantProfile(
   id: 'g1',
-  name: '团队网关',
+  name: 'Team gateway',
   mode: OnlineAssistantMode.gateway,
   endpoint: 'https://assistant.example.com/v1/assistant/chat',
   accessToken: 'gateway-code',
@@ -107,12 +105,12 @@ void main() {
   testWidgets('空列表给引导，添加后出现在列表并成为当前使用', (tester) async {
     final store = _MemoryStore();
     await openConsole(tester, store);
-    expect(find.textContaining('还没有保存任何 API'), findsOneWidget);
+    expect(find.textContaining('No APIs saved yet'), findsOneWidget);
 
-    await tester.tap(find.text('添加新的 API'));
+    await tester.tap(find.text('Add new API'));
     await tester.pumpAndSettle();
-    expect(find.text('添加 API'), findsOneWidget);
-    await tester.enterText(find.byKey(const Key('profile-name')), '我的模型');
+    expect(find.text('Add API'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('profile-name')), 'My model');
     await tester.enterText(
       find.byKey(const Key('model-base-url')),
       'https://api.example.com/v1',
@@ -121,15 +119,15 @@ void main() {
     await tester.enterText(find.byKey(const Key('model-name')), 'my-model');
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('保存'));
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
     expect(store.saves, 1);
     expect(store.state.profiles, hasLength(1));
-    expect(store.state.selectedProfile?.name, '我的模型');
-    expect(find.text('我的模型'), findsOneWidget);
-    expect(find.text('当前使用'), findsOneWidget);
-    expect(find.textContaining('还没有保存任何 API'), findsNothing);
+    expect(store.state.selectedProfile?.name, 'My model');
+    expect(find.text('My model'), findsOneWidget);
+    expect(find.text('Selected'), findsOneWidget);
+    expect(find.textContaining('No APIs saved yet'), findsNothing);
   });
 
   testWidgets('点「使用」切到在线，并把选中项记下来', (tester) async {
@@ -139,7 +137,7 @@ void main() {
     );
     await openConsole(tester, store, onResult: (service) => popped = service);
 
-    await tester.tap(find.text('使用'));
+    await tester.tap(find.text('Use'));
     await tester.pumpAndSettle();
 
     expect(popped, isNotNull);
@@ -153,10 +151,10 @@ void main() {
       const AssistantCredentialState(profiles: [_ownModel], selectedId: 'm1'),
     );
     await openConsole(tester, store);
-    await tester.tap(find.text('编辑'));
+    await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
 
-    expect(find.text('修改 API'), findsOneWidget);
+    expect(find.text('Edit API'), findsOneWidget);
     expect(
       tester
           .widget<TextField>(find.byKey(const Key('model-base-url')))
@@ -175,7 +173,7 @@ void main() {
     await tester.enterText(find.byKey(const Key('profile-name')), '换成通义');
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('保存'));
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
     // 改的是同一条，不是又加了一条。
@@ -194,18 +192,18 @@ void main() {
     await openConsole(tester, store);
 
     // 取消不删。
-    await tester.tap(find.widgetWithText(TextButton, '删除').first);
+    await tester.tap(find.widgetWithText(TextButton, 'Delete').first);
     await tester.pumpAndSettle();
-    expect(find.text('删除这条 API？'), findsOneWidget);
-    await tester.tap(find.text('取消'));
+    expect(find.text('Delete this API?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(store.state.profiles, hasLength(2));
     expect(store.saves, 0);
 
     // 确认才删；删掉的正是选中项，选中要一起清空。
-    await tester.tap(find.widgetWithText(TextButton, '删除').first);
+    await tester.tap(find.widgetWithText(TextButton, 'Delete').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('确认删除'));
+    await tester.tap(find.text('Delete API'));
     await tester.pumpAndSettle();
     expect(store.state.profiles, hasLength(1));
     expect(store.state.profiles.single.id, 'm1');
@@ -216,12 +214,15 @@ void main() {
     AssistantService? popped;
     await openConsole(tester, _FailingStore(), onResult: (s) => popped = s);
 
-    await tester.tap(find.text('使用'));
+    await tester.tap(find.text('Use'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('无法写入系统安全存储'), findsOneWidget);
+    expect(
+      find.textContaining('Secure storage could not be updated'),
+      findsOneWidget,
+    );
     expect(popped, isNull);
-    expect(find.text('使用'), findsOneWidget); // 控制台还开着，用户可以重试
+    expect(find.text('Use'), findsOneWidget); // 控制台还开着，用户可以重试
   });
 
   testWidgets('列表只显示打码后的凭据', (tester) async {
@@ -240,21 +241,34 @@ void main() {
       const AssistantCredentialState(profiles: [_gateway], selectedId: 'g1'),
     );
     await tester.pumpWidget(MaterialApp(home: AssistantPage(store: store)));
-    expect(find.textContaining('已启用在线助手'), findsNothing);
+    expect(find.textContaining('Online enabled'), findsNothing);
 
-    await tester.tap(find.text('在线'));
+    await tester.tap(find.text('Online'));
     await tester.pumpAndSettle();
 
-    expect(find.text('管理 API'), findsNothing);
-    expect(find.textContaining('已启用在线助手'), findsOneWidget);
+    expect(find.text('Manage APIs'), findsNothing);
+    expect(find.textContaining('Online enabled'), findsOneWidget);
     // 在线时必须随时看得到发送边界。
-    expect(find.textContaining('不发送原始记录、设备标识或历史对话'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Raw records, device identifiers and chat history are not sent',
+      ),
+      findsOneWidget,
+    );
 
     // 回本地同样是一步。
-    await tester.tap(find.text('本地'));
+    await tester.tap(find.text('Local'));
     await tester.pumpAndSettle();
-    expect(find.text('已切回本地摘要，不联网。'), findsOneWidget);
-    expect(find.textContaining('不发送原始记录、设备标识或历史对话'), findsNothing);
+    expect(
+      find.text('Switched to Local. No network connection is used.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'Raw records, device identifiers and chat history are not sent',
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('没有配置过 API 时，点「在线」会打开控制台引导', (tester) async {
@@ -262,9 +276,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: AssistantPage(store: _MemoryStore())),
     );
-    await tester.tap(find.text('在线'));
+    await tester.tap(find.text('Online'));
     await tester.pumpAndSettle();
-    expect(find.text('管理 API'), findsOneWidget);
-    expect(find.textContaining('还没有保存任何 API'), findsOneWidget);
+    expect(find.text('Manage APIs'), findsOneWidget);
+    expect(find.textContaining('No APIs saved yet'), findsOneWidget);
   });
 }

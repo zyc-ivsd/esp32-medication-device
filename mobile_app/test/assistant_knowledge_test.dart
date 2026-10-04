@@ -12,7 +12,9 @@ void main() {
   });
 
   test('「设备能测出我吃了多少药吗」命中设备边界', () {
-    final hits = retrieveKnowledge('设备能测出我吃了多少药吗');
+    final hits = retrieveKnowledge(
+      'Can the device measure my medication dose?',
+    );
     expect(hits.map((c) => c.id), contains('boundary.dose'));
   });
 
@@ -32,11 +34,14 @@ void main() {
     final hits = retrieveKnowledge('我应该吃几片');
     expect(hits, hasLength(1));
     expect(hits.single.id, 'boundary.dose');
-    expect(hits.single.body, contains('不测量剂量'));
+    expect(hits.single.body, contains('does not measure dose'));
   });
 
   test('topK 截断且按相关度降序', () {
-    final hits = retrieveKnowledge('设备能测出我吃了多少药吗', topK: 1);
+    final hits = retrieveKnowledge(
+      'Can the device measure my medication dose?',
+      topK: 1,
+    );
     expect(hits, hasLength(1));
     expect(hits.first.id, 'boundary.dose');
   });
@@ -60,11 +65,11 @@ void main() {
     const answer = '设备最多保存 256 条记录，超过后需要先同步并回收。';
 
     // 不带知识里的数字：256 不在摘要允许集合里，会被提醒「对不上」。
-    expect(verifyRemoteAnswer(answer, context), contains('对不上'));
+    expect(verifyRemoteAnswer(answer, context), contains('does not match'));
     // 带上检索到知识里的数字：256 是权威事实，不再误报。
     expect(
       verifyRemoteAnswer(answer, context, extra: extra),
-      isNot(contains('对不上')),
+      isNot(contains('does not match')),
     );
   });
 
@@ -87,15 +92,19 @@ void main() {
 
   test('语料扩充后的新篇都能被问到', () {
     expect(
-      retrieveKnowledge('本地模式会联网吗').map((c) => c.id),
+      retrieveKnowledge(
+        'Does Local mode connect to the internet?',
+      ).map((c) => c.id),
       contains('privacy.local'),
     );
     expect(
-      retrieveKnowledge('总条数是怎么算的').map((c) => c.id),
+      retrieveKnowledge(
+        'How is the total record count calculated?',
+      ).map((c) => c.id),
       contains('term.total'),
     );
     expect(
-      retrieveKnowledge('疑似无效事件是什么意思').map((c) => c.id),
+      retrieveKnowledge('What is a suspected invalid use?').map((c) => c.id),
       contains('term.invalid'),
     );
     expect(
@@ -122,7 +131,7 @@ void main() {
       contains('app.search'),
     );
     expect(
-      retrieveKnowledge('回答能朗读吗').map((c) => c.id),
+      retrieveKnowledge('Can answers be read aloud?').map((c) => c.id),
       contains('app.tts'),
     );
     expect(

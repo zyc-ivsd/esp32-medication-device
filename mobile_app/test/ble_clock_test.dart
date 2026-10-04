@@ -110,7 +110,7 @@ void main() {
       expect(service.clockStatus, ClockCalibrationStatus.failed);
       expect(service.canSync, false);
       expect(service.canCalibrateClock, true);
-      expect(service.lastError, contains('校时超时'));
+      expect(service.lastError, contains('calibration timed out'));
     },
   );
 
@@ -130,52 +130,61 @@ void main() {
     },
   );
 
-  test('device clock error permits retry and stale TIME_OK cannot complete a new request', () async {
-    await connect();
-    final original = timeCommand();
-    ble.frame('TIME_ERR|CLOCK_STORAGE');
-    await until(() => service.clockStatus == ClockCalibrationStatus.failed);
-    expect(service.lastError, contains('CLOCK_STORAGE'));
-    expect(service.canSync, false);
-    phoneTime = OffsetClock(DateTime.utc(2026, 10, 3, 12, 1), -720);
-    await service.requestClockCalibration(syncAfter: true);
-    expect(timeCommand(), endsWith('|-720'));
-    acknowledgeClock(original);
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-    expect(service.clockStatus, ClockCalibrationStatus.pending);
-    expect(ble.writes.where((w) => w.startsWith('SYNC_REQ|')), isEmpty);
-    acknowledgeClock();
-    await completeEmptySync();
-  });
+  test(
+    'device clock error permits retry and stale TIME_OK cannot complete a new request',
+    () async {
+      await connect();
+      final original = timeCommand();
+      ble.frame('TIME_ERR|CLOCK_STORAGE');
+      await until(() => service.clockStatus == ClockCalibrationStatus.failed);
+      expect(service.lastError, contains('CLOCK_STORAGE'));
+      expect(service.canSync, false);
+      phoneTime = OffsetClock(DateTime.utc(2026, 10, 3, 12, 1), -720);
+      await service.requestClockCalibration(syncAfter: true);
+      expect(timeCommand(), endsWith('|-720'));
+      acknowledgeClock(original);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(service.clockStatus, ClockCalibrationStatus.pending);
+      expect(ble.writes.where((w) => w.startsWith('SYNC_REQ|')), isEmpty);
+      acknowledgeClock();
+      await completeEmptySync();
+    },
+  );
 
-  test('manual disconnect cancels calibration retry and discards late time replies', () async {
-    await connect();
-    final command = timeCommand();
-    await service.disconnect();
-    final count = ble.writes.length;
-    acknowledgeClock(command);
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    expect(ble.writes.length, count);
-    expect(service.clockStatus, ClockCalibrationStatus.unavailable);
-    expect(service.canCalibrateClock, false);
-  });
+  test(
+    'manual disconnect cancels calibration retry and discards late time replies',
+    () async {
+      await connect();
+      final command = timeCommand();
+      await service.disconnect();
+      final count = ble.writes.length;
+      acknowledgeClock(command);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(ble.writes.length, count);
+      expect(service.clockStatus, ClockCalibrationStatus.unavailable);
+      expect(service.canCalibrateClock, false);
+    },
+  );
 
-  test('background pauses pending clock work and foreground requires a fresh handshake', () async {
-    await connect();
-    await service.setForeground(false);
-    final count = ble.writes.length;
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    expect(ble.writes.length, count);
-    await service.setForeground(true);
-    ble.state(DeviceConnectionState.connected);
-    await until(() => ble.writes.where((w) => w == 'HELLO').length == 2);
-    ble.frame('READY|AABBCCDDEEFF|P01|TIME1');
-    await until(
-      () => ble.writes.where((w) => w.startsWith('TIME|')).length == 2,
-    );
-    acknowledgeClock();
-    await completeEmptySync();
-  });
+  test(
+    'background pauses pending clock work and foreground requires a fresh handshake',
+    () async {
+      await connect();
+      await service.setForeground(false);
+      final count = ble.writes.length;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(ble.writes.length, count);
+      await service.setForeground(true);
+      ble.state(DeviceConnectionState.connected);
+      await until(() => ble.writes.where((w) => w == 'HELLO').length == 2);
+      ble.frame('READY|AABBCCDDEEFF|P01|TIME1');
+      await until(
+        () => ble.writes.where((w) => w.startsWith('TIME|')).length == 2,
+      );
+      acknowledgeClock();
+      await completeEmptySync();
+    },
+  );
 
   test('invalid phone clock stops calibration and data request', () async {
     phoneTime = DateTime.utc(1999, 12, 31);
@@ -190,16 +199,19 @@ void main() {
       ),
       isEmpty,
     );
-    expect(service.lastError, contains('手机日期或时区'));
+    expect(service.lastError, contains('Phone date or timezone'));
   });
 
-  test('older P01 firmware still synchronizes with an explicit unsupported clock state', () async {
-    await connect(timeCapable: false);
-    expect(service.clockStatus, ClockCalibrationStatus.unsupported);
-    expect(service.canCalibrateClock, false);
-    expect(ble.writes.where((w) => w.startsWith('TIME|')), isEmpty);
-    await completeEmptySync();
-  });
+  test(
+    'older P01 firmware still synchronizes with an explicit unsupported clock state',
+    () async {
+      await connect(timeCapable: false);
+      expect(service.clockStatus, ClockCalibrationStatus.unsupported);
+      expect(service.canCalibrateClock, false);
+      expect(ble.writes.where((w) => w.startsWith('TIME|')), isEmpty);
+      await completeEmptySync();
+    },
+  );
 
   test(
     'manual calibration is disabled during sync and available after DONE',

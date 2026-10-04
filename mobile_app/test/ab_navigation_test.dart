@@ -39,10 +39,10 @@ void main() {
       );
       await tester.tap(find.byType(BleConnectionCard));
       await tester.pumpAndSettle();
-      expect(find.text('设备连接与原型数据'), findsOneWidget);
+      expect(find.text('Device connection'), findsOneWidget);
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('历史记录').last);
+      await tester.tap(find.text('History').last);
       await tester.pumpAndSettle();
       expect(controller.source, RecordSource.device);
       expect(controller.records, hasLength(11));

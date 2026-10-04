@@ -17,11 +17,12 @@ typedef ExportRecords =
     Future<void> Function(List<MedicationRecord>, RecordSource, Rect);
 
 class HomePage extends StatefulWidget {
-  const HomePage(
-      {super.key,
-      required this.controller,
-      this.connectionBuilder,
-      this.exportRecords});
+  const HomePage({
+    super.key,
+    required this.controller,
+    this.connectionBuilder,
+    this.exportRecords,
+  });
   final RecordController controller;
   final DeviceConnectionBuilder? connectionBuilder;
   final ExportRecords? exportRecords;
@@ -70,11 +71,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (widget.exportRecords != null) {
         await widget.exportRecords!(snapshot, source, origin);
       } else {
-        await CsvExportService()
-            .share(records: snapshot, source: source, origin: origin);
+        await CsvExportService().share(
+          records: snapshot,
+          source: source,
+          origin: origin,
+        );
       }
     } catch (_) {
-      _message('无法打开导出分享，请重试。');
+      _message('Cannot open the share sheet. Please try again.');
     } finally {
       if (mounted) setState(() => _working = false);
     }
@@ -84,7 +88,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final repo = data.repository;
     final initial = data.summary;
     if (initial == null) return;
-    await Navigator.of(context).push(MaterialPageRoute<void>(
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
         builder: (_) => AssistantPage(
           assistantContext: initial.toAssistantContext(),
           contextLoader: () async => RecordSummary.calculate(
@@ -103,34 +108,47 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final start = data.filter.start;
     final end = data.filter.endExclusive;
     final chosen = await showDateRangePicker(
-        context: context,
-        firstDate: DateTime(2000),
-        lastDate: DateTime(2106, 2, 7),
-        currentDate: now,
-        initialDateRange: start == null || end == null
-            ? null
-            : DateTimeRange(
-                start: start, end: DateTime(end.year, end.month, end.day - 1)),
-        helpText: '筛选记录日期',
-        saveText: '确定');
+      context: context,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2106, 2, 7),
+      currentDate: now,
+      initialDateRange: start == null || end == null
+          ? null
+          : DateTimeRange(
+              start: start,
+              end: DateTime(end.year, end.month, end.day - 1),
+            ),
+      helpText: 'Filter record dates',
+      saveText: 'Apply',
+    );
     if (chosen != null && mounted) {
-      data.setFilter(RecordFilter(
+      data.setFilter(
+        RecordFilter(
           start: chosen.start,
-          endExclusive:
-              DateTime(chosen.end.year, chosen.end.month, chosen.end.day + 1),
-          includeUnknown: data.filter.includeUnknown));
+          endExclusive: DateTime(
+            chosen.end.year,
+            chosen.end.month,
+            chosen.end.day + 1,
+          ),
+          includeUnknown: data.filter.includeUnknown,
+        ),
+      );
     }
   }
 
   void _presetDays(int? days) {
     final now = data.clock().toLocal();
-    data.setFilter(RecordFilter(
+    data.setFilter(
+      RecordFilter(
         start: days == null
             ? null
             : DateTime(now.year, now.month, now.day - days + 1),
-        endExclusive:
-            days == null ? null : DateTime(now.year, now.month, now.day + 1),
-        includeUnknown: data.filter.includeUnknown));
+        endExclusive: days == null
+            ? null
+            : DateTime(now.year, now.month, now.day + 1),
+        includeUnknown: data.filter.includeUnknown,
+      ),
+    );
   }
 
   @override
@@ -138,19 +156,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     animation: data,
     builder: (context, _) => Scaffold(
       appBar: AppBar(
-        title: const Text('用药装置'),
+        title: const Text('parcel'),
         actions: [
           // 助手是核心入口，不能只藏在滚动区底部的按钮里。
           IconButton(
             onPressed: data.summary == null || data.loading
                 ? null
                 : _openAssistant,
-            tooltip: '记录助手',
+            tooltip: 'Record assistant',
             icon: const Icon(Icons.chat_bubble_outline),
           ),
           IconButton(
             onPressed: data.loading ? null : data.refresh,
-            tooltip: '刷新记录',
+            tooltip: 'Refresh records',
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -183,9 +201,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             selectedIcon: Icon(Icons.dashboard),
-            label: '概览',
+            label: 'Overview',
           ),
-          NavigationDestination(icon: Icon(Icons.history), label: '历史记录'),
+          NavigationDestination(icon: Icon(Icons.history), label: 'History'),
         ],
       ),
     ),
@@ -204,52 +222,76 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget _alertCard(List<AssistantObservation> observations) {
     final scheme = Theme.of(context).colorScheme;
     return Card(
-        margin: EdgeInsets.zero,
-        color: scheme.tertiaryContainer,
-        child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
-            child:
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.notifications_active_outlined,
-                  size: 22, color: scheme.onTertiaryContainer),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text('需要留意 ${observations.length} 项',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: scheme.onTertiaryContainer)),
-                    const SizedBox(height: 8),
-                    for (final observation in observations)
-                      Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Text('· ${observation.text}',
-                              style: TextStyle(
-                                  color: scheme.onTertiaryContainer))),
-                    Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton(
-                            onPressed: _openAssistant,
-                            child: const Text('问问记录助手'))),
-                  ])),
-              IconButton(
-                  onPressed: () => setState(() => _alertDismissed = true),
-                  tooltip: '本次不再显示',
-                  icon: const Icon(Icons.close)),
-            ])));
+      margin: EdgeInsets.zero,
+      color: scheme.tertiaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.notifications_active_outlined,
+              size: 22,
+              color: scheme.onTertiaryContainer,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    observations.length == 1
+                        ? '1 item needs attention'
+                        : '${observations.length} items need attention',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: scheme.onTertiaryContainer,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final observation in observations)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        '· ${observation.text}',
+                        style: TextStyle(color: scheme.onTertiaryContainer),
+                      ),
+                    ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: _openAssistant,
+                      child: const Text('Ask the assistant'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () => setState(() => _alertDismissed = true),
+              tooltip: 'Dismiss for this session',
+              icon: const Icon(Icons.close),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _errorView() => Center(
-      child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.storage_outlined, size: 40),
-            const SizedBox(height: 12),
-            Text(data.error!),
-            TextButton(onPressed: data.refresh, child: const Text('重试'))
-          ])));
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.storage_outlined, size: 40),
+          const SizedBox(height: 12),
+          Text(data.error!),
+          TextButton(onPressed: data.refresh, child: const Text('Retry')),
+        ],
+      ),
+    ),
+  );
 
   Widget _overview() {
     final summary = data.summary;
@@ -260,13 +302,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         Text(
-          '让每次记录更清楚',
+          'Your medication diary',
           style: Theme.of(
             context,
           ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 6),
-        const Text('记录保存在本机 · 无需联网查看'),
+        const Text('Saved on your phone · Available offline'),
         const SizedBox(height: 20),
         if (showAlerts) ...[_alertCard(alerts), const SizedBox(height: 20)],
         LayoutBuilder(
@@ -278,30 +320,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               runSpacing: 12,
               children: [
                 _metric(
-                  '今日使用动作',
+                  'Uses today',
                   summary?.todayCount,
-                  '次',
+                  'uses',
                   Icons.today_outlined,
                   width,
                 ),
                 _metric(
-                  '近 7 天使用动作',
+                  'Uses in 7 days',
                   summary?.last7DaysCount,
-                  '次',
+                  'uses',
                   Icons.calendar_month_outlined,
                   width,
                 ),
                 _metric(
-                  '近 7 天疑似无效',
+                  'Invalid uses (7 days)',
                   summary?.invalidEventCount,
-                  '条',
+                  'records',
                   Icons.info_outline,
                   width,
                 ),
                 _metric(
-                  '全部本地记录',
+                  'All saved records',
                   summary?.total,
-                  '条',
+                  'records',
                   Icons.storage_outlined,
                   width,
                 ),
@@ -314,8 +356,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _weekChart(summary),
           const SizedBox(height: 12),
           Text(
-            '按本地日期统计使用动作。时间未知 ${summary.unknownTimeCount} 条，未来时间 '
-            '${summary.futureTimeCount} 条，均不计入按日统计。',
+            'Counts use the recorded calendar date. ${summary.unknownTimeCount} unknown-time and '
+            '${summary.futureTimeCount} future-time records are excluded from daily counts.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 20),
@@ -334,14 +376,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            '暂无设备连接',
+                            'No device connected',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 6),
-                          const Text('连接页可查看收到的设备原始数据，完整事件记录用于概览与历史。'),
+                          const Text(
+                            'Connect and sync to turn device timestamps into medication-use records.',
+                          ),
                           if (summary?.lastSyncAt != null)
                             Text(
-                              '上次同步：${dateLabel(summary!.lastSyncAt!.toLocal())} '
+                              'Last sync: ${dateLabel(summary!.lastSyncAt!.toLocal())} '
                               '${timeLabel(summary.lastSyncAt!.toLocal())}',
                             ),
                         ],
@@ -355,17 +399,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if ((summary?.total ?? 0) == 0)
           const Padding(
             padding: EdgeInsets.only(bottom: 8),
-            child: Text('还没有设备事件记录。请先连接设备并同步，可在连接页查看收到的原始数据。'),
+            child: Text(
+              'No medication records yet. Connect your device and sync to get started.',
+            ),
           ),
         const SizedBox(height: 12),
         FilledButton.icon(
           onPressed: summary == null || data.loading ? null : _openAssistant,
           icon: const Icon(Icons.chat_bubble_outline),
-          label: const Text('问问记录助手'),
+          label: const Text('Ask the assistant'),
         ),
         const SizedBox(height: 12),
         Text(
-          '助手使用本地规则解释统计。设备事件不等于确认服药，也不用于计算药量。',
+          'Each valid device timestamp records one use. The app does not measure dose or verify ingestion.',
           style: TextStyle(
             fontSize: 12,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -376,70 +422,94 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Widget _metric(
-          String title, int? count, String unit, IconData icon, double width) =>
-      SizedBox(
-          width: width,
-          child: Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(icon,
-                            size: 20,
-                            color: Theme.of(context).colorScheme.primary),
-                        const SizedBox(height: 10),
-                        Text(title,
-                            style: Theme.of(context).textTheme.labelMedium),
-                        const SizedBox(height: 8),
-                        Text('${count ?? '—'} $unit',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.bold)),
-                      ]))));
+    String title,
+    int? count,
+    String unit,
+    IconData icon,
+    double width,
+  ) => SizedBox(
+    width: width,
+    child: Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 10),
+            Text(title, style: Theme.of(context).textTheme.labelMedium),
+            const SizedBox(height: 8),
+            Text(
+              '${count ?? '—'} $unit',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
   Widget _weekChart(RecordSummary summary) {
-    final max =
-        summary.days.fold<int>(1, (max, day) => math.max(max, day.count));
+    final max = summary.days.fold<int>(
+      1,
+      (max, day) => math.max(max, day.count),
+    );
     return Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-            padding: const EdgeInsets.all(16),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('最近 7 天',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Last 7 days',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
                 for (final day in summary.days)
                   Expanded(
-                      child: Semantics(
-                          label: '${dateLabel(day.day)}，${day.count} 次使用动作',
-                          excludeSemantics: true,
-                          child: Column(children: [
-                            Text('${day.count}'),
-                            const SizedBox(height: 6),
-                            SizedBox(
-                                height: 70,
-                                child: Align(
-                                    alignment: Alignment.bottomCenter,
-                                    child: Container(
-                                        width: 18,
-                                        height:
-                                            math.max(3, day.count / max * 70),
-                                        decoration: BoxDecoration(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary,
-                                            borderRadius:
-                                                BorderRadius.circular(4))))),
-                            const SizedBox(height: 8),
-                            Text('${day.day.month}/${day.day.day}',
-                                style: const TextStyle(fontSize: 11)),
-                          ])))
-              ])
-            ])));
+                    child: Semantics(
+                      label:
+                          '${dateLabel(day.day)}, ${day.count} medication uses',
+                      excludeSemantics: true,
+                      child: Column(
+                        children: [
+                          Text('${day.count}'),
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            height: 70,
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: Container(
+                                width: 18,
+                                height: math.max(3, day.count / max * 70),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${day.day.month}/${day.day.day}',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _history() {
@@ -453,14 +523,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 16,
           children: [
-            Text('历史记录', style: Theme.of(context).textTheme.headlineSmall),
+            Text('History', style: Theme.of(context).textTheme.headlineSmall),
             Builder(
               builder: (buttonContext) => FilledButton.tonalIcon(
                 onPressed: _working || data.loading || visible.isEmpty
                     ? null
                     : () => _export(buttonContext),
                 icon: const Icon(Icons.ios_share),
-                label: const Text('导出 CSV'),
+                label: const Text('Export CSV'),
               ),
             ),
           ],
@@ -471,20 +541,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           runSpacing: 4,
           children: [
             ActionChip(
-              label: const Text('全部日期'),
+              label: const Text('All dates'),
               onPressed: () => _presetDays(null),
             ),
             ActionChip(
-              label: const Text('今天'),
+              label: const Text('Today'),
               onPressed: () => _presetDays(1),
             ),
             ActionChip(
-              label: const Text('近 7 天'),
+              label: const Text('Last 7 days'),
               onPressed: () => _presetDays(7),
             ),
             ActionChip(
               avatar: const Icon(Icons.date_range, size: 18),
-              label: const Text('选择日期'),
+              label: const Text('Choose dates'),
               onPressed: _pickDates,
             ),
           ],
@@ -496,7 +566,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
-          title: const Text('同时显示时间未知的记录'),
+          title: const Text('Include records with unknown time'),
           value: data.filter.includeUnknown,
           onChanged: (value) => data.setFilter(
             RecordFilter(
@@ -507,7 +577,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
         ),
         Text(
-          '当前显示 ${visible.length} 条 · CSV 导出相同记录',
+          'Showing ${visible.length} records · CSV exports the same selection',
           key: const Key('visible-count'),
           style: Theme.of(context).textTheme.bodySmall,
         ),
@@ -519,7 +589,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               children: [
                 const Icon(Icons.inbox_outlined, size: 44),
                 const SizedBox(height: 12),
-                Text(data.records.isEmpty ? '还没有记录' : '这个筛选条件下没有记录'),
+                Text(
+                  data.records.isEmpty
+                      ? 'No records yet'
+                      : 'No records match these filters',
+                ),
               ],
             ),
           )
@@ -530,60 +604,83 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Widget _recordTile(MedicationRecord record) {
-    final time = record.occurredAt?.toLocal();
+    final time = record.localOccurredAt;
     return Card(
-        margin: const EdgeInsets.only(bottom: 8),
-        child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            leading: Icon(
-                record.eventType == 2
-                    ? Icons.error_outline
-                    : Icons.receipt_long_outlined,
-                color: record.eventType == 2
-                    ? Colors.orange.shade800
-                    : Theme.of(context).colorScheme.primary),
-            title: Text(record.eventLabel),
-            subtitle: Text(
-                '${time == null ? '时间未知' : '${dateLabel(time)} ${timeLabel(time)}'}\n${record.deviceId} · #${record.seq}'),
-            isThreeLine: true,
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showModalBottomSheet<void>(
-                context: context,
-                showDragHandle: true,
-                isScrollControlled: true,
-                builder: (context) => SafeArea(
-                    child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                        child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(record.eventLabel,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineSmall),
-                              const SizedBox(height: 16),
-                              for (final entry in <String, String>{
-                                '数据来源': data.source.label,
-                                '设备 ID': record.deviceId,
-                                '序号': '${record.seq}',
-                                '本地时间': time == null
-                                    ? '时间未知，未计入按日统计'
-                                    : time.toString(),
-                                'UTC 时间':
-                                    record.occurredAt?.toIso8601String() ??
-                                        '未知',
-                                '持续时间': '${record.durationMs} ms',
-                                '压力特征': '${record.pressurePeakPa} Pa',
-                                '置信度': '${record.confidence} / 100',
-                                '电池电压': '${record.batteryMv} mV',
-                                '协议版本': '${record.protocolVersion}',
-                                '算法版本': record.algorithmVersion ?? '设备未提供',
-                              }.entries)
-                                Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: Text('${entry.key}：${entry.value}')),
-                            ]))))));
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        leading: Icon(
+          record.eventType == 2
+              ? Icons.error_outline
+              : Icons.receipt_long_outlined,
+          color: record.eventType == 2
+              ? Theme.of(context).colorScheme.tertiary
+              : Theme.of(context).colorScheme.primary,
+        ),
+        title: Text(record.eventLabel),
+        subtitle: Text(
+          '${time == null ? 'Unknown time' : '${dateLabel(time)} ${timeLabel(time)}'}\n${record.deviceId} · ${record.deviceFileId ?? '#${record.seq}'}',
+        ),
+        isThreeLine: true,
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => showModalBottomSheet<void>(
+          context: context,
+          showDragHandle: true,
+          isScrollControlled: true,
+          builder: (context) => SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    record.eventLabel,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 16),
+                  for (final entry in <String, String>{
+                    'Source': data.source.label,
+                    'Device ID': record.deviceId,
+                    if (record.isTimestampRecord) ...{
+                      'Device file': record.deviceFileId!,
+                      'Original timestamp': record.rawTimestampText!,
+                      'Time basis':
+                          'Device calendar time; original timezone not supplied',
+                      'Received on phone': record.receivedAt!
+                          .toLocal()
+                          .toString(),
+                    } else
+                      'Sequence': '${record.seq}',
+                    'Local time': time == null
+                        ? 'Unknown time; excluded from daily counts'
+                        : '${dateLabel(time)} ${timeLabel(time)}',
+                    'UTC time':
+                        record.occurredAt?.toIso8601String() ??
+                        'Not supplied by device',
+                    if (!record.isTimestampRecord) ...{
+                      'Duration': '${record.durationMs} ms',
+                      'Pressure': '${record.pressurePeakPa} Pa',
+                      'Confidence': '${record.confidence} / 100',
+                      'Battery voltage': '${record.batteryMv} mV',
+                    } else
+                      'Measurements': 'Not supplied by timestamp-only firmware',
+                    'Protocol': record.isTimestampRecord
+                        ? 'P01 / TIME1'
+                        : '${record.protocolVersion}',
+                    'Algorithm':
+                        record.algorithmVersion ?? 'Not provided by device',
+                  }.entries)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text('${entry.key}：${entry.value}'),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -38,12 +38,12 @@ class _ModelPreset {
 const _presets = [
   _ModelPreset('DeepSeek', 'https://api.deepseek.com/v1', 'deepseek-chat'),
   _ModelPreset(
-    '通义千问',
+    'Qwen',
     'https://dashscope.aliyuncs.com/compatible-mode/v1',
     'qwen-plus',
   ),
   _ModelPreset('Kimi', 'https://api.moonshot.cn/v1', 'moonshot-v1-8k'),
-  _ModelPreset('智谱 GLM', 'https://open.bigmodel.cn/api/paas/v4', 'glm-4-flash'),
+  _ModelPreset('GLM', 'https://open.bigmodel.cn/api/paas/v4', 'glm-4-flash'),
 ];
 
 class _AssistantSettingsDialogState extends State<AssistantSettingsDialog> {
@@ -104,7 +104,10 @@ class _AssistantSettingsDialogState extends State<AssistantSettingsDialog> {
       setState(() => _error = error.message);
       return;
     } catch (_) {
-      setState(() => _error = '这条配置不完整，请检查各项后重试。');
+      setState(
+        () => _error =
+            'This configuration is incomplete. Check the fields and try again.',
+      );
       return;
     }
     Navigator.of(context).pop(profile);
@@ -114,7 +117,7 @@ class _AssistantSettingsDialogState extends State<AssistantSettingsDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      title: Text(widget.initial == null ? '添加 API' : '修改 API'),
+      title: Text(widget.initial == null ? 'Add API' : 'Edit API'),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -127,8 +130,8 @@ class _AssistantSettingsDialogState extends State<AssistantSettingsDialog> {
                 key: const Key('profile-name'),
                 autocorrect: false,
                 decoration: const InputDecoration(
-                  labelText: '名字（可选）',
-                  hintText: '例如：DeepSeek',
+                  labelText: 'Name (optional)',
+                  hintText: 'For example: DeepSeek',
                 ),
               ),
               const SizedBox(height: 12),
@@ -141,14 +144,15 @@ class _AssistantSettingsDialogState extends State<AssistantSettingsDialog> {
                 value: _consented,
                 onChanged: (value) =>
                     setState(() => _consented = value ?? false),
-                title: const Text('同意每次提问发送问题和当前记录统计摘要'),
-                subtitle: const Text('只发送上面列出的内容；不发送原始记录、设备标识和历史对话。'),
+                title: const Text(
+                  'Allow each question and the current record summary to be sent',
+                ),
+                subtitle: const Text(
+                  'Raw records and device identifiers are excluded. Session history is optional.',
+                ),
               ),
               if (_error != null)
-                Text(
-                  _error!,
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
+                Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
             ],
           ),
         ),
@@ -156,11 +160,11 @@ class _AssistantSettingsDialogState extends State<AssistantSettingsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: const Text('Cancel'),
         ),
         FilledButton(
           onPressed: _consented ? _save : null,
-          child: const Text('保存'),
+          child: const Text('Save'),
         ),
       ],
     );
@@ -185,18 +189,18 @@ class _AssistantSettingsDialogState extends State<AssistantSettingsDialog> {
               ? Icons.visibility_off_outlined
               : Icons.visibility_outlined,
         ),
-        tooltip: _showSecret ? '隐藏' : '显示',
+        tooltip: _showSecret ? 'Hide' : 'Show',
       ),
     ),
   );
 
   List<Widget> _buildOwnModelFields(ThemeData theme) => [
     Text(
-      '填写你自己的模型服务。API Key 只在这台手机上使用，不发给团队服务器，也不写入日志。',
+      'Use your own model service. Your API key is used on this phone and is never sent to a team server or written to logs.',
       style: theme.textTheme.bodyMedium,
     ),
     const SizedBox(height: 10),
-    Text('常见服务（点一下自动填地址和模型名）', style: theme.textTheme.labelMedium),
+    Text('Service presets', style: theme.textTheme.labelMedium),
     const SizedBox(height: 6),
     Wrap(
       spacing: 8,
@@ -216,8 +220,9 @@ class _AssistantSettingsDialogState extends State<AssistantSettingsDialog> {
       keyboardType: TextInputType.url,
       autocorrect: false,
       decoration: const InputDecoration(
-        labelText: '模型服务地址',
-        helperText: '填到 /v1 即可，App 会自动补 /chat/completions',
+        labelText: 'Model service URL',
+        helperText:
+            'Enter the base URL ending in /v1. The app adds /chat/completions.',
         hintText: 'https://api.deepseek.com/v1',
         helperMaxLines: 2,
       ),
@@ -225,15 +230,15 @@ class _AssistantSettingsDialogState extends State<AssistantSettingsDialog> {
     _buildSecretField(
       controller: _apiKey,
       key: const Key('model-api-key'),
-      label: '你的 API Key',
+      label: 'Your API key',
     ),
     TextField(
       controller: _model,
       key: const Key('model-name'),
       autocorrect: false,
       decoration: const InputDecoration(
-        labelText: '模型名称',
-        helperText: '要和服务商的文档一致',
+        labelText: 'Model name',
+        helperText: 'Use the name provided by your service',
         hintText: 'deepseek-chat',
         helperMaxLines: 2,
       ),
@@ -251,24 +256,29 @@ class _AssistantSettingsDialogState extends State<AssistantSettingsDialog> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('每次提问会发送什么', style: theme.textTheme.labelLarge),
+        Text('Sent with each question', style: theme.textTheme.labelLarge),
         const SizedBox(height: 4),
         const Text(
-          '· 你本次输入的问题原文（其中可能包含你自己填写的个人信息）\n'
-          '· 记录统计摘要：今日与近 7 天次数、逐日次数、疑似无效条数、'
-          '时间未知与未来时间条数、最后同步时间',
+          '· Your current question, including any personal information you enter\n'
+          '· Record summary: daily and weekly uses, daily counts, invalid uses, '
+          'unknown and future times, and the last completed sync',
         ),
         const SizedBox(height: 10),
-        Text('不会发送什么', style: theme.textTheme.labelLarge),
-        const SizedBox(height: 4),
-        const Text('· 原始记录与单条时间戳 · 设备标识或蓝牙地址 · 历史对话 · 任何密钥'),
-        const SizedBox(height: 10),
-        Text('凭据保存在哪', style: theme.textTheme.labelLarge),
+        Text(
+          'Excluded from the record summary',
+          style: theme.textTheme.labelLarge,
+        ),
         const SizedBox(height: 4),
         const Text(
-          '· 按「保存」即写入本机安全存储（Android Keystore / iOS Keychain），'
-          '可在「管理 API」里随时删除。\n'
-          '· Key 由本机直接发给上面填写的模型服务，不经过团队服务器，也不写入日志。',
+          '· Raw records and individual timestamps · Device or Bluetooth identifiers · Credentials. Session history is optional.',
+        ),
+        const SizedBox(height: 10),
+        Text('Credential storage', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        const Text(
+          '· Save stores your configuration in encrypted Android secure storage. '
+          'Delete it at any time in Manage APIs.\n'
+          '· Your key is sent directly to your selected model service, never to a team server or logs.',
         ),
       ],
     ),

@@ -1,6 +1,7 @@
 import '../assistant_provider.dart';
 import '../models/assistant_context.dart';
 import '../rules/observation_rules.dart';
+import '../question_routing.dart';
 
 /// App 侧的本地规则助手：不依赖网络和 API Key 的确定性回答器。
 ///
@@ -53,20 +54,20 @@ class MockAssistantProvider implements AssistantProvider {
   };
 
   static const _medicalBoundaryAnswer =
-      '这个问题不该由设备记录来回答。\n'
-      '设备记录只能说明装置被使用过，不能确认是否服药，所以「有没有漏服」'
-      '这类判断需要你或医生按实际情况来确认。\n'
-      '我也不做诊断、不推荐剂量、不调整用药方案，这些请以医生或药师的意见为准。\n'
-      '如果你问的是记录本身，可以直接问：今天用了几次、数据是不是最新的、空白那几天怎么看。';
+      'Device records cannot establish this.\n'
+      'A logged use does not verify ingestion, so questions about missed doses '
+      'need confirmation from you or a clinician.\n'
+      'For diagnosis, dose changes or a treatment plan, consult a clinician or pharmacist.\n'
+      'I can explain the saved records: uses today, sync status or days without entries.';
 
   /// 「连不上 / 同步失败」这类维护问题，放在数据分支之前回答：
   /// 用户要的是排查步骤，不是一句「最后一次同步是……」。同步失败不会删记录，
   /// 所以结尾补一句安心，避免让人以为设备上的数据没了。
   static const _connectionAnswer =
-      '先检查设备电量与充电，确认设备在广播窗口内、蓝牙没被别的应用占用，'
-      '再在 App 里重新扫描（不是系统蓝牙配对）。\n'
-      '若提示了具体错误码，切到「在线」问那个错误码是什么意思；'
-      '同步失败不会删除设备上的记录。';
+      'Check the battery, wake the device with its button and make sure Bluetooth is available. '
+      'Then scan again inside the app.\n'
+      'If you see an error code, ask Online what it means. '
+      'A failed sync does not delete device files.';
 
   @override
   Future<String> reply({
@@ -77,12 +78,12 @@ class MockAssistantProvider implements AssistantProvider {
     // 本地规则不检索知识库，references 忽略。
     await Future<void>.delayed(const Duration(milliseconds: 250));
 
-    final normalizedQuestion = question.trim();
+    final normalizedQuestion = normalizeAssistantQuestion(question);
     if (normalizedQuestion.isEmpty) {
-      return '请先输入问题。';
+      return 'Enter a question first.';
     }
 
-    const sourceText = '设备记录';
+    const sourceText = 'device records';
     final observations = evaluateObservations(
       context,
       now: now ?? DateTime.now(),
@@ -99,16 +100,16 @@ class MockAssistantProvider implements AssistantProvider {
 
     if (normalizedQuestion.contains('今天') ||
         normalizedQuestion.contains('次数')) {
-      return '根据当前$sourceText，今天使用 ${context.todayCount} 次，'
-          '近 7 天共 ${context.last7DaysCount} 次。这里只统计设备记录的使用动作，不能据此确认实际服药。'
+      return 'Your $sourceText show ${context.todayCount} uses today and '
+          '${context.last7DaysCount} uses in the last 7 days. Logged uses do not verify ingestion.'
           '$attention';
     }
 
     if (normalizedQuestion.contains('异常') ||
         normalizedQuestion.contains('无效')) {
       final base = context.invalidEventCount == 0
-          ? '$sourceText近 7 天没有疑似无效记录。这个结果仅基于已有记录。'
-          : '$sourceText近 7 天有 ${context.invalidEventCount} 条疑似无效记录，可在历史中查看原始信息。';
+          ? 'Your $sourceText show no suspected invalid uses in the last 7 days. This describes only saved records.'
+          : 'Your $sourceText show ${context.invalidEventCount} suspected invalid uses in the last 7 days. Inspect their details in History.';
       return '$base$attention';
     }
 
@@ -117,70 +118,84 @@ class MockAssistantProvider implements AssistantProvider {
         normalizedQuestion.contains('规律') ||
         normalizedQuestion.contains('波动') ||
         normalizedQuestion.contains('趋势')) {
-      return '$sourceText近 7 天逐日使用动作（最早一天在前，今天在最后）：'
-          '${context.dailyCounts.join('、')}，共 ${context.last7DaysCount} 次。'
-          '时间未知或晚于当前时间的记录不计入按日统计。$attention';
+      return 'Daily uses in your $sourceText (oldest to today): '
+          '${context.dailyCounts.join(', ')}, a total of ${context.last7DaysCount} uses. '
+          'Unknown and future times are excluded from daily counts.$attention';
     }
 
     if (_matchesAny(normalizedQuestion, const {'最新', '同步', '多久'})) {
       final base =
           _firstNote(observations, 'never_synced') ??
           (context.lastSyncAt == null
-              ? '尚未记录设备同步时间，无法判断数据新旧。'
-              : '最后一次同步是 ${context.lastSyncAt!.toLocal()}，'
-                    '之后的新记录可能还没同步到手机。');
+              ? 'No completed sync time is recorded, so data freshness is unknown.'
+              : 'Last completed sync: ${context.lastSyncAt!.toLocal()}. '
+                    'Newer device records may not have reached this phone.');
       return '$base${_notesFor(observations, const {'stale_sync', 'future_sync'})}'
-          '同步时间只反映本机数据的新旧，不影响记录本身。';
+          'Sync time describes freshness, not ingestion.';
     }
 
     if (_matchesAny(normalizedQuestion, const {'时间', '校时', '日期'})) {
-      const advice = '如果设备时间不对，可以在设备上校时后重新同步。';
-      return '$sourceText里有 ${context.unknownTimeCount} 条时间未知、'
-          '${context.futureTimeCount} 条时间晚于当前时间的记录，这些不计入按日统计。'
+      const advice =
+          'Calibrate the device clock in Device connection and sync again. Older files are not rewritten.';
+      return 'Your $sourceText include ${context.unknownTimeCount} unknown-time and '
+          '${context.futureTimeCount} future-time entries, excluded from daily counts.'
           '${_notesFor(observations, const {'unknown_time', 'future_time'})}'
           '$advice';
     }
 
-    if (_matchesAny(normalizedQuestion, const {'总共', '一共', '多少条', '总量', '全部'})) {
-      return '$sourceText共 ${context.totalCount} 条：今天 ${context.todayCount} 次，'
-          '近 7 天 ${context.last7DaysCount} 次。'
-          '其中 ${context.unknownTimeCount} 条时间未知、'
-          '${context.futureTimeCount} 条时间晚于当前时间，这些不计入按日统计。$attention';
+    if (_matchesAny(normalizedQuestion, const {
+      '总共',
+      '一共',
+      '多少条',
+      '总量',
+      '全部',
+    })) {
+      return 'Your $sourceText contain ${context.totalCount} records: ${context.todayCount} uses today and '
+          '${context.last7DaysCount} uses in the last 7 days. '
+          '${context.unknownTimeCount} records have unknown times and '
+          '${context.futureTimeCount} have future times; both are excluded from daily counts.$attention';
     }
 
     if (_matchesAny(normalizedQuestion, const {'空白', '空着', '没记录', '漏记'})) {
       // 一条记录都没有时，逐日全是 0，不能说「这 7 天都有记录」。
       if (context.totalCount == 0) {
-        return '目前没有记录，近 7 天也没有设备动作。'
-            '没有记录只说明当天没有设备动作，不能确认是否服药。';
+        return 'There are no saved records or device uses in the last 7 days. '
+            'A missing record does not establish a missed dose.';
       }
-      final blanks = _notesFor(
-        observations,
-        const {'blank_days', 'uneven_days', 'recent_gap'},
-      );
-      return '$sourceText近 7 天逐日为 ${context.dailyCounts.join('、')}。'
-          '${blanks.isEmpty ? '这 7 天都有记录。' : blanks}'
-          '没有记录只说明当天没有设备动作，不能确认是否服药。';
+      final blanks = _notesFor(observations, const {
+        'blank_days',
+        'uneven_days',
+        'recent_gap',
+      });
+      return 'Daily uses in your $sourceText: ${context.dailyCounts.join(', ')}. '
+          '${blanks.isEmpty ? 'Each of the last 7 days has records. ' : blanks}'
+          'A missing record does not establish a missed dose.';
     }
 
     // 「大字模式」这条必须排在通用「怎么办 / 建议」之前：用户会问
     // 「字太小了怎么办」，而「怎么办」会被下面那个通用分支抢先命中，
     // 答案就变成了统计观察（实测踩过）。
-    if (_matchesAny(normalizedQuestion, const {'大字', '字号', '字体', '字太小', '看不清'})) {
-      return '「更多」→「大字模式」把整页文字放大一档，方便阅读。';
+    if (_matchesAny(normalizedQuestion, const {
+      '大字',
+      '字号',
+      '字体',
+      '字太小',
+      '看不清',
+    })) {
+      return 'Open More → Larger text on the assistant page.';
     }
 
     if (normalizedQuestion.contains('建议') ||
         normalizedQuestion.contains('注意') ||
         normalizedQuestion.contains('怎么办')) {
-      return '下面是按固定规则得出的观察，只陈述事实，不是医疗建议：\n'
+      return 'These observations use fixed rules and describe your saved records:\n'
           '${_observationList(observations)}'
-          '设备动作次数只代表装置被使用，不能确认实际服药。';
+          'Logged uses do not verify ingestion.';
     }
 
     if (_matchesAny(normalizedQuestion, const {'数据来源', '记录来源', '数据从哪', '导入'})) {
-      return '记录来自设备同步，请在概览页打开设备连接页进行蓝牙连接和同步。'
-          '连接页可查看收到的原始时间文本；完整事件记录用于概览、历史、CSV 和助手统计。';
+      return 'Open Device connection from Overview to connect and sync. '
+          'Each unique device timestamp becomes one use entry for Overview, History, CSV and assistant statistics.';
     }
 
     if (_matchesAny(normalizedQuestion, const {
@@ -192,27 +207,40 @@ class MockAssistantProvider implements AssistantProvider {
       '表格',
       '分享',
     })) {
-      return '可以在历史记录页把当前筛选结果导出成 CSV 文件；'
-          '导出的是已保存的正式记录，不含原型时间文本，也不含任何凭据。';
+      return 'Export the currently filtered records as CSV from History. '
+          'The file includes device timestamp entries and their original text. Unknown measurements remain blank; no credentials are included.';
     }
 
     // —— App 功能求助：本地就能答，不联网。放在通用「帮助」之前，
     //    否则「怎么清空对话」这类具体问法会被兜底答案吞掉。 ——
 
-    if (_matchesAny(normalizedQuestion, const {'清空', '删对话', '删除对话', '删聊天', '删除聊天'})) {
-      return '在助手页右上角「更多」→「清空对话」可删除本机保存的聊天记录（会先确认一次）。'
-          '这只删对话，不影响用药记录本身。';
+    if (_matchesAny(normalizedQuestion, const {
+      '清空',
+      '删对话',
+      '删除对话',
+      '删聊天',
+      '删除聊天',
+    })) {
+      return 'Open More → Clear chat on the assistant page and confirm. '
+          'Only chat messages are deleted; medication records are kept.';
     }
 
     if (_matchesAny(normalizedQuestion, const {'搜索', '查找对话', '找对话', '搜对话'})) {
-      return '点助手页右上角的放大镜图标，按关键词筛选历史对话；搜索只在本地进行，不发任何网络请求。';
+      return 'Tap the search icon on the assistant page to filter saved messages. Search runs on this phone.';
     }
 
-    if (_matchesAny(normalizedQuestion, const {'朗读', '读出来', '读回答', '语音', '语速', '音调'})) {
-      return '每条助手回答右下角有「朗读」按钮，用手机的 Android 系统语音朗读；'
-          '能否离线取决于手机安装的语音引擎和中文语音包；'
-          '朗读时那个按钮会变成「停止」，再点一次就停，没读到的部分会显示成灰色；'
-          '「更多」→「朗读设置」可开自动朗读、调语速和音调。';
+    if (_matchesAny(normalizedQuestion, const {
+      '朗读',
+      '读出来',
+      '读回答',
+      '语音',
+      '语速',
+      '音调',
+    })) {
+      return 'Tap Read aloud beside an answer to use Android text-to-speech. '
+          'Offline playback depends on an installed English voice and its engine. '
+          'Tap Stop to end playback. '
+          'More → Read-aloud settings controls automatic playback, speed and pitch.';
     }
 
     if (_matchesAny(normalizedQuestion, const {
@@ -226,9 +254,9 @@ class MockAssistantProvider implements AssistantProvider {
       '在线设置',
       'api key',
     })) {
-      return '在助手页顶部点「在线」即可联网问答；第一次会引导添加自己的模型服务'
-          '（地址 + 你自己的 API Key + 模型名）。Key 加密保存在手机、调用时直接发给所选模型服务，'
-          '不经过团队服务器；没配置过也可以先用「本地」。';
+      return 'Tap Online and add your own model service '
+          '(URL, API key and model name). The key is encrypted on your phone and sent directly to that service. '
+          'Local works without a model configuration or network.';
     }
 
     if (_matchesAny(normalizedQuestion, const {
@@ -242,23 +270,23 @@ class MockAssistantProvider implements AssistantProvider {
       '是什么',
       '用途',
     })) {
-      return '我可以按固定规则解释你的记录：今天/近 7 天的次数、逐日规律、总条数、'
-          '同步时间、时间未知与未来时间、疑似无效事件，以及需要留意的事项。\n'
-          '也能答 App 怎么用：连接设备、导出 CSV、清空对话、搜索、'
-          '朗读、大字模式、切换在线等。\n'
-          '我只讲记录和 App 用法，不做医疗判断、不给用药建议，也不把设备动作当成服药证明。\n'
-          '想问通用健康知识，切到上面的「在线」；本地模式不联网、不需要账号。';
+      return 'I use fixed local rules to explain today and weekly counts, daily patterns, totals, '
+          'sync status, unknown and future times, invalid events and items needing attention.\n'
+          'I can also explain connecting, CSV export, clearing or searching chat, '
+          'read aloud, larger text and Online mode.\n'
+          'A logged use does not verify ingestion; I do not diagnose or advise on medication doses.\n'
+          'Switch to Online for general health information. Local needs no network or account.';
     }
 
     // 兜底不再只丢一句摘要：先说清本地模式能答什么、答不了什么，
     // 免得用户问什么都只看到一串统计数字，以为助手在复读。
-    return '本地模式只按固定规则解释你的记录，不联网、也没有通用知识。\n'
-        '我能直接回答这些：今天用了几次、数据是不是最新的、设备时间、总条数、'
-        '异常记录、逐日空档、需要留意的事。\n'
-        '也能答 App 怎么用：连接设备、导出 CSV、清空对话、搜索、'
-        '朗读、大字、切换在线。\n'
-        '想问健康常识（例如某种疾病的科普），切到上面的「在线」就能问。\n'
-        '当前记录摘要：${context.toPromptSummary()}';
+    return 'Local uses fixed rules to explain saved records. It has no general-purpose language model.\n'
+        'Ask about uses today, sync status, device time, totals, '
+        'invalid events, days without records or things needing attention.\n'
+        'I can also explain connecting, CSV export, clearing or searching chat, '
+        'read aloud, larger text and Online mode.\n'
+        'Switch to Online for general questions.\n'
+        'Current summary: ${context.toPromptSummary()}';
   }
 
   bool _matchesAny(String question, Set<String> keywords) =>
@@ -290,12 +318,12 @@ class MockAssistantProvider implements AssistantProvider {
         .where((item) => item.level == ObservationLevel.attention)
         .map((item) => item.text)
         .toList();
-    return notes.isEmpty ? '' : '\n需要留意：${notes.join(' ')}';
+    return notes.isEmpty ? '' : '\nNeeds attention: ${notes.join(' ')}';
   }
 
   String _observationList(List<AssistantObservation> observations) {
     if (observations.isEmpty) {
-      return '· 当前没有需要提醒的项目。\n';
+      return '· No items need attention right now.\n';
     }
     return '${observations.map((item) => '· ${item.text}').join('\n')}\n';
   }

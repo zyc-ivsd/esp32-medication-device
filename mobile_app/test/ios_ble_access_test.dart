@@ -70,7 +70,7 @@ void main() {
             .having(
               (e) => e.message,
               'actionable explanation',
-              contains('打开蓝牙'),
+              contains('Turn on Bluetooth'),
             ),
       ),
     );
@@ -100,7 +100,7 @@ void main() {
           isA<BleAccessException>().having(
             (e) => e.message,
             'retry',
-            contains('授权提示'),
+            contains('permission prompt'),
           ),
         ),
       );

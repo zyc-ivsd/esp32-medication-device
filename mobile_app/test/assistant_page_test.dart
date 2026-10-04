@@ -169,7 +169,7 @@ class _FailOnceStreamProvider implements StreamingAssistantProvider {
     required String question,
     required AssistantContext context,
     List<String> references = const [],
-  }) async => '今天使用 2 次。';
+  }) async => '2 uses today.';
 
   @override
   Stream<String> replyStream({
@@ -182,9 +182,11 @@ class _FailOnceStreamProvider implements StreamingAssistantProvider {
     calls++;
     lastHistory = List.of(history);
     if (calls == 1) {
-      throw const AssistantException('模型服务响应超时，请稍后重试或切回本地规则。');
+      throw const AssistantException(
+        'The model service timed out. Try again or switch to Local.',
+      );
     }
-    yield '今天使用 2 次。';
+    yield '2 uses today.';
   }
 }
 
@@ -235,7 +237,7 @@ class _IncompleteStreamProvider implements StreamingAssistantProvider {
     required String question,
     required AssistantContext context,
     List<String> references = const [],
-  }) async => '今天使用 2 次。';
+  }) async => '2 uses today.';
 
   @override
   Stream<String> replyStream({
@@ -245,7 +247,7 @@ class _IncompleteStreamProvider implements StreamingAssistantProvider {
     List<ChatTurn> history = const [],
     StreamCompletion? completion,
   }) async* {
-    yield '今天使用 2 次。';
+    yield '2 uses today.';
     // 模拟流正常关闭、但没收到 `data: [DONE]`。
     completion?.markIncomplete(reason);
   }
@@ -263,9 +265,11 @@ class _FailOnceProvider implements AssistantProvider {
   }) async {
     calls++;
     if (calls == 1) {
-      throw const AssistantException('模型服务响应超时，请稍后重试或切回本地规则。');
+      throw const AssistantException(
+        'The model service timed out. Try again or switch to Local.',
+      );
     }
-    return '今天使用 2 次。';
+    return '2 uses today.';
   }
 }
 
@@ -283,7 +287,7 @@ class _SlowAnswer implements AssistantProvider {
   }) async {
     await Future<void>.delayed(delay);
     // 内容无关紧要：这条用例只关心迟到的回答会被丢弃。
-    return '今天使用 2 次。';
+    return '2 uses today.';
   }
 }
 
@@ -295,7 +299,7 @@ class _FailMidStreamProvider implements StreamingAssistantProvider {
     required String question,
     required AssistantContext context,
     List<String> references = const [],
-  }) async => '今天使用 2 次。';
+  }) async => '2 uses today.';
 
   @override
   Stream<String> replyStream({
@@ -313,7 +317,7 @@ class _FailMidStreamProvider implements StreamingAssistantProvider {
 
 const _gateway = AssistantProfile(
   id: 'g1',
-  name: '团队网关',
+  name: 'Team gateway',
   mode: OnlineAssistantMode.gateway,
   endpoint: 'https://assistant.example.com/v1/assistant/chat',
   accessToken: 'gateway-code',
@@ -331,15 +335,15 @@ const _unreadGrey = Color(0xff9ca3af);
 
 /// 界面上的九个快捷问题，与 `_AssistantPageState._quickQuestions` 一一对应。
 const _quickQuestions = [
-  '今天用了几次？',
-  '最近有异常吗？',
-  '查看最近一周',
-  '有什么建议？',
-  '数据是最新的吗？',
-  '设备时间对吗？',
-  '一共有多少条记录？',
-  '空白那几天怎么看？',
-  '能问什么？',
+  'How many uses today?',
+  'Any invalid uses recently?',
+  'Show the last week',
+  'What needs attention?',
+  'Is my data up to date?',
+  'Is the device clock correct?',
+  'How many records are saved?',
+  'What do days without records mean?',
+  'What can I ask?',
 ];
 
 Future<void> _pump(
@@ -392,10 +396,7 @@ Future<void> _ask(WidgetTester tester, String question) async {
 /// 摊平一个 [TextSpan] 树，方便断言回答正文里某段数字被上了什么色。
 List<TextSpan> _flatten(InlineSpan span) {
   if (span is! TextSpan) return const [];
-  return [
-    span,
-    ...span.children?.expand(_flatten) ?? const <TextSpan>[],
-  ];
+  return [span, ...span.children?.expand(_flatten) ?? const <TextSpan>[]];
 }
 
 void main() {
@@ -449,7 +450,7 @@ void main() {
 
     expect(find.text('昨天问过的问题'), findsOneWidget);
     expect(find.text('昨天得到的回答'), findsOneWidget);
-    expect(find.text('在线回答'), findsOneWidget);
+    expect(find.text('Online answer'), findsOneWidget);
   });
 
   testWidgets('本地回答与在线回答各自带来源标', (tester) async {
@@ -457,8 +458,8 @@ void main() {
       tester,
       service: AssistantService(provider: _FixedAnswer('近 7 天共 3 次。')),
     );
-    await _ask(tester, '最近有异常吗？');
-    expect(find.text('本地回答'), findsOneWidget);
+    await _ask(tester, 'Any invalid uses recently?');
+    expect(find.text('Local answer'), findsOneWidget);
     expect(find.textContaining('近 7 天共 3 次。'), findsOneWidget);
   });
 
@@ -472,8 +473,8 @@ void main() {
     );
     await _ask(tester, '介绍一下哮喘');
 
-    expect(find.text('AI 知识'), findsOneWidget);
-    expect(find.textContaining('不是你的设备记录'), findsOneWidget);
+    expect(find.text('AI knowledge'), findsOneWidget);
+    expect(find.textContaining('not your device records'), findsOneWidget);
     // 标记行本身不显示给用户，来源用小标表达。
     expect(find.textContaining('【来源】'), findsNothing);
   });
@@ -485,22 +486,25 @@ void main() {
     );
     await _pump(tester, store: store, chats: chats);
 
-    await _ask(tester, '今天用了几次？');
-    expect(find.textContaining('今天使用 2 次'), findsOneWidget);
-    expect(find.text('本地回答'), findsOneWidget);
+    await _ask(tester, 'How many uses today?');
+    expect(find.textContaining('2 uses today'), findsOneWidget);
+    expect(find.text('Local answer'), findsOneWidget);
     expect(chats.saved, hasLength(3)); // 开场白 + 提问 + 回答
 
-    await tester.tap(find.text('在线'));
+    await tester.tap(find.text('Online'));
     await tester.pumpAndSettle();
     // 关键：切过去之后本地那条回答还在——这正是以前会整段消失的地方。
-    expect(find.textContaining('今天使用 2 次'), findsOneWidget);
-    expect(find.textContaining('已启用在线助手'), findsOneWidget);
-    expect(find.text('本地回答'), findsOneWidget);
+    expect(find.textContaining('2 uses today'), findsOneWidget);
+    expect(find.textContaining('Online enabled'), findsOneWidget);
+    expect(find.text('Local answer'), findsOneWidget);
 
-    await tester.tap(find.text('本地'));
+    await tester.tap(find.text('Local'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('今天使用 2 次'), findsOneWidget);
-    expect(find.text('已切回本地摘要，不联网。'), findsOneWidget);
+    expect(find.textContaining('2 uses today'), findsOneWidget);
+    expect(
+      find.text('Switched to Local. No network connection is used.'),
+      findsOneWidget,
+    );
     expect(chats.saved, hasLength(5)); // 两次切换各插一条提示
   });
 
@@ -511,24 +515,37 @@ void main() {
     await _pump(tester, store: store, size: const Size(800, 1600));
 
     // 先切到在线（用 gateway 这条）。
-    await tester.tap(find.text('在线'));
+    await tester.tap(find.text('Online'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('已启用在线助手'), findsOneWidget);
-    expect(find.textContaining('不发送原始记录、设备标识或历史对话'), findsOneWidget);
+    expect(find.textContaining('Online enabled'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Raw records, device identifiers and chat history are not sent',
+      ),
+      findsOneWidget,
+    );
 
     // 打开管理 API，删掉正在用的这条。
-    await tester.tap(find.byTooltip('管理 API'));
+    await tester.tap(find.byTooltip('Manage APIs'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, '删除'));
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('确认删除'));
+    await tester.tap(find.text('Delete API'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('关闭'));
+    await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
 
     // 删除后应立即切回本地，不再用旧 Key。
-    expect(find.textContaining('已删除当前使用的模型配置'), findsOneWidget);
-    expect(find.textContaining('不发送原始记录、设备标识或历史对话'), findsNothing);
+    expect(
+      find.textContaining('The selected model configuration was deleted'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'Raw records, device identifiers and chat history are not sent',
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('清空对话会删掉本机历史，只留开场白', (tester) async {
@@ -537,11 +554,11 @@ void main() {
     await _ask(tester, '随便问问');
     expect(chats.saved, hasLength(3));
 
-    await tester.tap(find.byTooltip('更多'));
+    await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('清空对话'));
+    await tester.tap(find.text('Clear chat'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('清空'));
+    await tester.tap(find.text('Clear'));
     await tester.pumpAndSettle();
 
     expect(chats.clears, 1);
@@ -557,11 +574,11 @@ void main() {
     await _pump(tester, chats: chats, size: const Size(420, 1400));
     await _ask(tester, '随便问问');
 
-    await tester.tap(find.byTooltip('更多'));
+    await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('清空对话'));
+    await tester.tap(find.text('Clear chat'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('取消'));
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
     expect(chats.clears, 0);
@@ -577,11 +594,11 @@ void main() {
       ),
       size: const Size(420, 1400),
     );
-    await tester.enterText(find.byType(TextField), '今天用了几次？');
+    await tester.enterText(find.byType(TextField), 'How many uses today?');
     await tester.tap(find.widgetWithIcon(IconButton, Icons.send));
     await tester.pump();
     await tester.pump();
-    expect(find.text('取消'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
 
     // 等待期间清空：用显式时长推进菜单/对话框动画，不用 pumpAndSettle——
     // 它会一直推着思考气泡里的转圈动画往前走，还会顺带把慢回答的计时器也触发。
@@ -594,29 +611,29 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     }
 
-    await tester.tap(find.byTooltip('更多'));
+    await tester.tap(find.byTooltip('More'));
     await advanceOverlays();
-    await tester.tap(find.text('清空对话'));
+    await tester.tap(find.text('Clear chat'));
     await advanceOverlays();
-    await tester.tap(find.text('清空'));
+    await tester.tap(find.text('Clear'));
     await advanceOverlays();
 
     // 让慢回答计时器到点：代次已变，迟到回答被丢弃。
     await tester.pump(const Duration(seconds: 3));
     await tester.pump();
-    expect(find.textContaining('今天使用 2 次'), findsNothing);
-    expect(find.text('取消'), findsNothing);
+    expect(find.textContaining('2 uses today'), findsNothing);
+    expect(find.text('Cancel'), findsNothing);
   });
 
   testWidgets('「更多」菜单有对话、朗读与大字三项，不再有外观切换', (tester) async {
     await _pump(tester);
 
-    await tester.tap(find.byTooltip('更多'));
+    await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
-    expect(find.text('清空对话'), findsOneWidget);
-    expect(find.text('带上本轮对话'), findsOneWidget);
-    expect(find.text('朗读设置'), findsOneWidget);
-    expect(find.text('大字模式'), findsOneWidget);
+    expect(find.text('Clear chat'), findsOneWidget);
+    expect(find.text('Include this session'), findsOneWidget);
+    expect(find.text('Read-aloud settings'), findsOneWidget);
+    expect(find.text('Larger text'), findsOneWidget);
     // 外观切换（跟随系统 / 浅色 / 深色）已按需求移除。前面正数断言先保证
     // 菜单真的展开了，这一条才有意义（单写 findsNothing 在菜单根本没开时也会通过）。
     expect(find.textContaining('外观：'), findsNothing);
@@ -634,7 +651,7 @@ void main() {
       await tester.tap(chip);
       await tester.pumpAndSettle();
       expect(
-        find.textContaining('本地模式只按固定规则解释你的记录'),
+        find.textContaining('Local uses fixed rules to explain saved records'),
         findsNothing,
         reason: '「$question」落到了兜底，说明没有对应的规则分支',
       );
@@ -648,10 +665,10 @@ void main() {
       service: AssistantService(provider: _FixedAnswer('近 7 天共 3 次。')),
       speaker: speaker,
     );
-    await _ask(tester, '最近有异常吗？');
+    await _ask(tester, 'Any invalid uses recently?');
 
     // 开场白和回答都是助手气泡，各带一个「朗读」；取最后一个 = 最新回答。
-    await tester.tap(find.text('朗读').last);
+    await tester.tap(find.text('Read aloud').last);
     await tester.pumpAndSettle();
     expect(speaker.spoken, hasLength(1));
     expect(speaker.spoken.first, contains('近 7 天共 3 次'));
@@ -664,23 +681,23 @@ void main() {
       service: AssistantService(provider: _FixedAnswer('近 7 天共 3 次。')),
       speaker: speaker,
     );
-    await _ask(tester, '最近有异常吗？');
+    await _ask(tester, 'Any invalid uses recently?');
 
-    await tester.tap(find.text('朗读').last);
+    await tester.tap(find.text('Read aloud').last);
     await tester.pump();
     expect(speaker.spoken, hasLength(1));
     // 读的过程中那一条变成「停止」，另一个气泡（开场白）不受影响。
-    expect(find.text('停止'), findsOneWidget);
-    expect(find.text('朗读'), findsOneWidget);
+    expect(find.text('Stop'), findsOneWidget);
+    expect(find.text('Read aloud'), findsOneWidget);
 
     // 提问开始、开始朗读各已经停过一次了，这里只断言「这一次又停了一次」。
     final stopsBefore = speaker.stops;
-    await tester.tap(find.text('停止'));
+    await tester.tap(find.text('Stop'));
     await tester.pumpAndSettle();
     expect(speaker.stops, stopsBefore + 1);
     // 停完回到「朗读」，可以再点。
-    expect(find.text('停止'), findsNothing);
-    expect(find.text('朗读'), findsNWidgets(2));
+    expect(find.text('Stop'), findsNothing);
+    expect(find.text('Read aloud'), findsNWidgets(2));
   });
 
   testWidgets('朗读时已读部分保持原样式，未读部分变灰', (tester) async {
@@ -690,8 +707,8 @@ void main() {
       service: AssistantService(provider: _FixedAnswer('近 7 天共 3 次。')),
       speaker: speaker,
     );
-    await _ask(tester, '最近有异常吗？');
-    await tester.tap(find.text('朗读').last);
+    await _ask(tester, 'Any invalid uses recently?');
+    await tester.tap(find.text('Read aloud').last);
     await tester.pump();
 
     // _flatten 会把最外层那个「只有 children、没有 text」的根节点也带出来，
@@ -704,8 +721,7 @@ void main() {
             ),
           )
           .firstWhere(
-            (widget) =>
-                widget.textSpan!.toPlainText().contains('近 7 天共 3 次'),
+            (widget) => widget.textSpan!.toPlainText().contains('近 7 天共 3 次'),
           )
           .textSpan!,
     ).where((span) => span.text != null).toList();
@@ -741,10 +757,10 @@ void main() {
     await _pump(
       tester,
       service: AssistantService(
-        provider: _StreamingProvider(
-          ['近 7 天共 ', '3 次使用动作。'],
-          gap: const Duration(milliseconds: 100),
-        ),
+        provider: _StreamingProvider([
+          '近 7 天共 ',
+          '3 次使用动作。',
+        ], gap: const Duration(milliseconds: 100)),
         isRemote: true,
       ),
     );
@@ -752,14 +768,15 @@ void main() {
     await tester.tap(find.widgetWithIcon(IconButton, Icons.send));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 120));
+    await tester.pump();
     // 第一块已到、流还没结束：能看到滚动的部分文本和「正在输出」。
-    expect(find.text('正在输出'), findsOneWidget);
+    expect(find.text('Generating'), findsOneWidget);
     expect(find.textContaining('近 7 天共'), findsOneWidget);
 
     await tester.pumpAndSettle();
     expect(find.textContaining('近 7 天共 3 次使用动作。'), findsOneWidget);
-    expect(find.text('在线回答'), findsOneWidget);
-    expect(find.text('正在输出'), findsNothing);
+    expect(find.text('Online answer'), findsOneWidget);
+    expect(find.text('Generating'), findsNothing);
   });
 
   testWidgets('开启自动朗读后新回答自动朗读，新问题会先停掉上一段', (tester) async {
@@ -772,7 +789,7 @@ void main() {
         const AssistantSettings(autoSpeak: true),
       ),
     );
-    await _ask(tester, '最近有异常吗？');
+    await _ask(tester, 'Any invalid uses recently?');
     expect(speaker.spoken, hasLength(1));
     expect(speaker.spoken.first, contains('近 7 天共 3 次'));
     // 提问开始与朗读开始各会停一次上一段，保证「只读最新一句」。
@@ -789,13 +806,13 @@ void main() {
     );
 
     // 默认关：第一问不带历史。
-    await _ask(tester, '最近有异常吗？');
+    await _ask(tester, 'Any invalid uses recently?');
     expect(provider.lastHistory, isEmpty);
     expect(settings.settings.sendHistory, isFalse);
 
-    await tester.tap(find.byTooltip('更多'));
+    await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('带上本轮对话'));
+    await tester.tap(find.text('Include this session'));
     await tester.pumpAndSettle();
     expect(settings.settings.sendHistory, isTrue);
 
@@ -809,9 +826,9 @@ void main() {
     await _pump(tester, settingsStore: settings);
     expect(settings.settings.largeText, isFalse);
 
-    await tester.tap(find.byTooltip('更多'));
+    await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('大字模式'));
+    await tester.tap(find.text('Larger text'));
     await tester.pumpAndSettle();
     expect(settings.settings.largeText, isTrue);
   });
@@ -844,7 +861,7 @@ void main() {
     await _pump(tester, chats: chats);
     expect(find.text('昨天问过的问题'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('搜索对话'));
+    await tester.tap(find.byTooltip('Search chat'));
     await tester.pumpAndSettle();
     // 搜索条在输入栏之前构建，是第一个 TextField。
     await tester.enterText(find.byType(TextField).first, '回答');
@@ -857,11 +874,11 @@ void main() {
   testWidgets('答完后给出「接着问」追问', (tester) async {
     await _pump(
       tester,
-      service: AssistantService(provider: _FixedAnswer('今天使用 2 次。')),
+      service: AssistantService(provider: _FixedAnswer('2 uses today.')),
     );
-    await _ask(tester, '今天用了几次？');
+    await _ask(tester, 'How many uses today?');
 
-    expect(find.text('接着问'), findsOneWidget);
+    expect(find.text('Ask a follow-up'), findsOneWidget);
     // 追问用 InputChip，不与底部固定的 ActionChip 快捷问题混在一起。
     expect(find.byType(InputChip), findsNWidgets(3));
   });
@@ -869,15 +886,15 @@ void main() {
   testWidgets('摘要卡显示同步状态徽章', (tester) async {
     await _pump(tester);
     // 默认 context 无同步时间 → 「尚未同步」。
-    expect(find.text('尚未同步'), findsOneWidget);
+    expect(find.text('Not synced yet'), findsOneWidget);
   });
 
   testWidgets('回答正文里个人数据数字标蓝', (tester) async {
     await _pump(
       tester,
-      service: AssistantService(provider: _FixedAnswer('今天使用 2 次。')),
+      service: AssistantService(provider: _FixedAnswer('2 uses today.')),
     );
-    await _ask(tester, '今天用了几次？');
+    await _ask(tester, 'How many uses today?');
 
     final answerText = tester
         .widgetList<Text>(
@@ -886,11 +903,13 @@ void main() {
           ),
         )
         .firstWhere(
-          (text) => text.textSpan!.toPlainText().contains('今天使用 2 次'),
+          (text) => text.textSpan!.toPlainText().contains('2 uses today'),
         );
 
-    final data = _flatten(answerText.textSpan!).where((s) => s.text == '2').single;
-    expect(data.style?.color, const Color(0xff1565c0));
+    final data = _flatten(
+      answerText.textSpan!,
+    ).where((s) => s.text == '2').single;
+    expect(data.style?.color, const Color(0xff75518c));
   });
 
   testWidgets('踩在线回答会在本地重新解释，不回传反馈', (tester) async {
@@ -900,17 +919,17 @@ void main() {
       service: AssistantService(provider: provider, isRemote: true),
       size: const Size(420, 1400),
     );
-    await _ask(tester, '今天用了几次？');
+    await _ask(tester, 'How many uses today?');
     expect(provider.calls, 1);
 
-    await tester.tap(find.byTooltip('没帮助').last);
+    await tester.tap(find.byTooltip('Not helpful').last);
     await tester.pumpAndSettle();
 
     // 反馈只落在本地界面：在线 provider 没被再问一次，也不会把反馈发给模型。
     expect(provider.calls, 1);
-    expect(find.textContaining('不会发送给模型'), findsOneWidget);
-    expect(find.text('本地回答'), findsOneWidget);
-    expect(find.textContaining('今天使用 2 次'), findsOneWidget);
+    expect(find.textContaining('Feedback saved on this phone'), findsOneWidget);
+    expect(find.text('Local answer'), findsOneWidget);
+    expect(find.textContaining('2 uses today'), findsOneWidget);
   });
 
   testWidgets('回答失败后给重试入口，点重试能成功', (tester) async {
@@ -920,18 +939,24 @@ void main() {
       service: AssistantService(provider: provider, isRemote: true),
       size: const Size(420, 1400),
     );
-    await _ask(tester, '今天用了几次？');
+    await _ask(tester, 'How many uses today?');
 
     expect(provider.calls, 1);
-    expect(find.textContaining('模型服务响应超时'), findsOneWidget);
-    expect(find.text('上次回答失败，点这里重试'), findsOneWidget);
+    expect(find.textContaining('The model service timed out'), findsOneWidget);
+    expect(
+      find.text('The last request failed. Tap to try again.'),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.text('上次回答失败，点这里重试'));
+    await tester.tap(find.text('The last request failed. Tap to try again.'));
     await tester.pumpAndSettle();
 
     expect(provider.calls, 2);
-    expect(find.textContaining('今天使用 2 次'), findsOneWidget);
-    expect(find.text('上次回答失败，点这里重试'), findsNothing);
+    expect(find.textContaining('2 uses today'), findsOneWidget);
+    expect(
+      find.text('The last request failed. Tap to try again.'),
+      findsNothing,
+    );
   });
 
   testWidgets('等待回答时可点「取消」，迟到结果被丢弃', (tester) async {
@@ -942,32 +967,33 @@ void main() {
       ),
       size: const Size(420, 1400),
     );
-    await tester.enterText(find.byType(TextField), '今天用了几次？');
+    await tester.enterText(find.byType(TextField), 'How many uses today?');
     await tester.tap(find.widgetWithIcon(IconButton, Icons.send));
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('取消'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
 
-    await tester.tap(find.text('取消'));
+    await tester.tap(find.text('Cancel'));
     await tester.pump();
-    expect(find.text('已取消本次问答。'), findsOneWidget);
+    expect(find.text('Question cancelled.'), findsOneWidget);
 
     // 等迟到回答返回：代次已变，结果被丢弃，不落成回答。
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
-    expect(find.textContaining('今天使用 2 次'), findsNothing);
-    expect(find.text('取消'), findsNothing);
+    expect(find.textContaining('2 uses today'), findsNothing);
+    expect(find.text('Cancel'), findsNothing);
   });
 
   testWidgets('流式回答时可点「停止」，未完成的输出不落成回答', (tester) async {
     await _pump(
       tester,
       service: AssistantService(
-        provider: _StreamingProvider(
-          ['近 7 天共 ', '3 次使用动作。', '今天使用 2 次。'],
-          gap: const Duration(milliseconds: 200),
-        ),
+        provider: _StreamingProvider([
+          '近 7 天共 ',
+          '3 次使用动作。',
+          '2 uses today.',
+        ], gap: const Duration(milliseconds: 200)),
         isRemote: true,
       ),
       size: const Size(420, 1400),
@@ -978,18 +1004,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
 
     // 第一块已到、流还在走：能看到部分文本和「停止」。
-    expect(find.text('停止'), findsOneWidget);
+    expect(find.text('Stop'), findsOneWidget);
     expect(find.textContaining('近 7 天共'), findsOneWidget);
 
-    await tester.tap(find.text('停止'));
+    await tester.tap(find.text('Stop'));
     await tester.pump();
-    expect(find.text('已取消本次问答。'), findsOneWidget);
+    expect(find.text('Question cancelled.'), findsOneWidget);
 
     // 让剩余 chunk 计时器走完，确认被丢弃、不落成带来源标的完整回答。
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
-    expect(find.text('在线回答'), findsNothing);
-    expect(find.textContaining('今天使用 2 次。'), findsNothing);
+    expect(find.text('Online answer'), findsNothing);
+    expect(find.textContaining('2 uses today.'), findsNothing);
   });
 
   testWidgets('流式中途报错保留正文，存为未完成且不自动朗读', (tester) async {
@@ -1012,12 +1038,15 @@ void main() {
     await tester.tap(find.widgetWithIcon(IconButton, Icons.send));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('回答未完成'), findsOneWidget);
-    expect(find.text('上次回答失败，点这里重试'), findsOneWidget);
+    expect(find.textContaining('incomplete'), findsOneWidget);
+    expect(
+      find.text('The last request failed. Tap to try again.'),
+      findsOneWidget,
+    );
     expect(find.textContaining('半截回答内容'), findsOneWidget);
     final partial = chats.saved.singleWhere((m) => m.text.contains('半截回答内容'));
     expect(partial.isIncomplete, isTrue);
-    expect(partial.text, contains('回答未完成'));
+    expect(partial.text, contains('incomplete'));
     expect(speaker.spoken, isEmpty);
   });
 
@@ -1031,7 +1060,7 @@ void main() {
       ),
       size: const Size(420, 1400),
     );
-    await _ask(tester, '今天用了几次？');
+    await _ask(tester, 'How many uses today?');
     await _ask(tester, '那昨天呢？');
     expect(provider.lastHistory, isNotEmpty);
     expect(
@@ -1055,10 +1084,10 @@ void main() {
     await tester.pump();
     // 先证明订阅确实建好了、事件收得到，否则「没取消」这个断言毫无意义。
     expect(find.textContaining('近 7 天共'), findsOneWidget);
-    expect(find.text('停止'), findsOneWidget);
+    expect(find.text('Stop'), findsOneWidget);
     expect(provider.cancelled, isFalse);
 
-    await tester.tap(find.text('停止'));
+    await tester.tap(find.text('Stop'));
     await tester.pump();
     await tester.pump();
     // 订阅已经取消：底层请求据此掐断，模型不会继续生成、继续计费。
@@ -1087,11 +1116,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     }
 
-    await tester.tap(find.byTooltip('更多'));
+    await tester.tap(find.byTooltip('More'));
     await advanceOverlays();
-    await tester.tap(find.text('清空对话'));
+    await tester.tap(find.text('Clear chat'));
     await advanceOverlays();
-    await tester.tap(find.text('清空'));
+    await tester.tap(find.text('Clear'));
     await advanceOverlays();
 
     expect(provider.cancelled, isTrue);
@@ -1106,17 +1135,20 @@ void main() {
       ),
       size: const Size(420, 1400),
     );
-    await tester.enterText(find.byType(TextField), '今天用了几次？');
+    await tester.enterText(find.byType(TextField), 'How many uses today?');
     await tester.tap(find.widgetWithIcon(IconButton, Icons.send));
     await tester.pumpAndSettle();
 
     // 不发 [DONE] 的服务端不算少见，内容往往是全的：不丢回答。
-    expect(find.textContaining('今天使用 2 次'), findsOneWidget);
-    expect(find.text('在线回答'), findsOneWidget);
+    expect(find.textContaining('2 uses today'), findsOneWidget);
+    expect(find.text('Online answer'), findsOneWidget);
     // 但也没法确认收全了，得如实提醒。
-    expect(find.textContaining('可能不完整'), findsOneWidget);
+    expect(find.textContaining('may be incomplete'), findsOneWidget);
     // 提示归提示，重试入口不出现——这次不算失败。
-    expect(find.text('上次回答失败，点这里重试'), findsNothing);
+    expect(
+      find.text('The last request failed. Tap to try again.'),
+      findsNothing,
+    );
   });
 
   testWidgets('失败提示不会被当成历史回灌给模型', (tester) async {
@@ -1131,39 +1163,53 @@ void main() {
     );
 
     // 第一问失败，留下一条失败气泡。
-    await _ask(tester, '今天用了几次？');
+    await _ask(tester, 'How many uses today?');
     expect(provider.calls, 1);
-    expect(find.textContaining('模型服务响应超时'), findsOneWidget);
+    expect(find.textContaining('The model service timed out'), findsOneWidget);
 
     // 第二问带上本轮对话，失败气泡不能被当成「助手说过的话」发出去。
     await _ask(tester, '那昨天呢？');
     expect(provider.calls, 2);
     expect(provider.lastHistory, isNotEmpty);
     expect(
-      provider.lastHistory.every((turn) => !turn.text.contains('超时')),
+      provider.lastHistory.every((turn) => !turn.text.contains('timed out')),
       isTrue,
       reason: '失败提示是 App 写的，不是模型的回答，不该进多轮上下文',
     );
     expect(
-      provider.lastHistory.any((turn) => turn.text.contains('今天用了几次')),
+      provider.lastHistory.any(
+        (turn) => turn.text.contains('How many uses today'),
+      ),
       isTrue,
     );
   });
 
   testWidgets('模型输出截断时保留回答，并显示明确原因与重试入口', (tester) async {
     final chats = _MemoryChatStore();
-    await _pump(tester,
+    await _pump(
+      tester,
       chats: chats,
       service: AssistantService(
-        provider: _IncompleteStreamProvider(reason: '模型服务已达到本次输出上限，回答未完成，请分段提问或重试。'),
+        provider: _IncompleteStreamProvider(
+          reason:
+              'The model reached its output limit. The answer is incomplete; ask in smaller parts or retry.',
+        ),
         isRemote: true,
       ),
       size: const Size(420, 1400),
     );
-    await _ask(tester, '今天用了几次？');
-    expect(find.textContaining('今天使用 2 次'), findsOneWidget);
-    expect(find.textContaining('输出上限'), findsOneWidget);
-    expect(find.text('上次回答失败，点这里重试'), findsOneWidget);
-    expect(chats.saved.singleWhere((m) => m.text.contains('输出上限')).isIncomplete, isTrue);
+    await _ask(tester, 'How many uses today?');
+    expect(find.textContaining('2 uses today'), findsOneWidget);
+    expect(find.textContaining('output limit'), findsOneWidget);
+    expect(
+      find.text('The last request failed. Tap to try again.'),
+      findsOneWidget,
+    );
+    expect(
+      chats.saved
+          .singleWhere((m) => m.text.contains('output limit'))
+          .isIncomplete,
+      isTrue,
+    );
   });
 }

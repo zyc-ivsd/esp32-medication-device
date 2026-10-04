@@ -12,7 +12,9 @@ class CsvExportService {
   /// Receives the same filtered snapshot as the history list. Every event,
   /// including unknown time and invalid events, keeps its original fields.
   static String encode(
-      Iterable<MedicationRecord> records, RecordSource source) {
+    Iterable<MedicationRecord> records,
+    RecordSource source,
+  ) {
     const header = [
       'source',
       'device_id',
@@ -27,7 +29,12 @@ class CsvExportService {
       'confidence',
       'battery_mv',
       'protocol_version',
-      'algorithm_version'
+      'algorithm_version',
+      'record_kind',
+      'device_file_id',
+      'raw_timestamp_text',
+      'time_basis',
+      'received_at_utc',
     ];
     final rows = <List<Object?>>[
       header,
@@ -35,18 +42,30 @@ class CsvExportService {
         [
           source.name,
           _safeText(record.deviceId),
-          record.seq,
-          record.timestamp,
+          record.isTimestampRecord ? '' : record.seq,
+          record.isTimestampRecord ? '' : record.timestamp,
           record.occurredAt?.toIso8601String() ?? '',
-          record.occurredAt?.toLocal().toIso8601String() ?? '',
+          record.isTimestampRecord
+              ? (record.hasKnownTime
+                    ? record.rawTimestampText!
+                          .replaceFirst('_', 'T')
+                          .replaceRange(13, 14, ':')
+                          .replaceRange(16, 17, ':')
+                    : '')
+              : record.localOccurredAt?.toIso8601String() ?? '',
           record.hasKnownTime ? 'known' : 'unknown',
           record.eventType,
           record.durationMs,
           record.pressurePeakPa,
           record.confidence,
           record.batteryMv,
-          record.protocolVersion,
+          record.isTimestampRecord ? 'P01' : record.protocolVersion,
           _safeText(record.algorithmVersion ?? ''),
+          record.isTimestampRecord ? 'button_timestamp' : 'structured_event',
+          _safeText(record.deviceFileId ?? ''),
+          _safeText(record.rawTimestampText ?? ''),
+          record.isTimestampRecord ? 'device_local_offset_unknown' : 'unix_utc',
+          record.receivedAt?.toUtc().toIso8601String() ?? '',
         ],
     ];
     return '\uFEFF${rows.map((row) => row.map(_cell).join(',')).join('\r\n')}\r\n';
@@ -57,10 +76,11 @@ class CsvExportService {
   static String _safeText(String value) =>
       RegExp(r'^\s*[=+@\-\t\r\n]').hasMatch(value) ? "'$value" : value;
 
-  Future<void> share(
-      {required List<MedicationRecord> records,
-      required RecordSource source,
-      required Rect origin}) async {
+  Future<void> share({
+    required List<MedicationRecord> records,
+    required RecordSource source,
+    required Rect origin,
+  }) async {
     if (records.isEmpty) throw StateError('No records to export');
     final directory = await getTemporaryDirectory();
     final name =
@@ -68,7 +88,10 @@ class CsvExportService {
     final file = File(p.join(directory.path, name));
     await file.writeAsBytes(utf8.encode(encode(records, source)), flush: true);
     // Keep the temporary file after handoff: a recipient can read it lazily.
-    await Share.shareXFiles([XFile(file.path, mimeType: 'text/csv')],
-        subject: '${source.label}导出', sharePositionOrigin: origin);
+    await Share.shareXFiles(
+      [XFile(file.path, mimeType: 'text/csv')],
+      subject: '${source.label} export',
+      sharePositionOrigin: origin,
+    );
   }
 }

@@ -5,12 +5,12 @@ import 'package:medication_device_app/assistant/models/assistant_context.dart';
 void main() {
   test('声明在最前、个人数据数字单独标蓝', () {
     const text =
-        '（以下是 AI 的通用健康知识，不是你的设备记录；涉及健康决策请以医生意见为准。）'
+        '(General AI health information, not your device records. Consult a clinician for health decisions.)'
         '\n\n近 7 天共 3 次使用动作。';
     final spans = styleAnswer(text, dataNumbers: const {3, 7});
 
     expect(spans.first.kind, AnswerSpanKind.notice);
-    expect(spans.first.text, contains('不是你的设备记录'));
+    expect(spans.first.text, contains('not your device records'));
 
     // 「7」后面是「天」不是次数单位，不标蓝；「3」后面是「次」，标蓝。
     final data = spans
@@ -21,7 +21,8 @@ void main() {
   });
 
   test('结尾「提醒」标成问题', () {
-    const text = '本周记录了 12 次使用动作。\n\n'
+    const text =
+        '本周记录了 12 次使用动作。\n\n'
         '（提醒：本次回答里的 12 与当前统计摘要对不上，请以概览页的数字为准。）';
     final spans = styleAnswer(text);
     expect(spans.last.kind, AnswerSpanKind.alert);

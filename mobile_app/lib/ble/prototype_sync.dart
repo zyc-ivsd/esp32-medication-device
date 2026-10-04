@@ -27,18 +27,22 @@ class PrototypeSync {
     if (!isActive() || fields.length < 2 || fields[1] != token) return;
     switch (fields[0]) {
       case 'BEGIN':
-        if (fields.length != 3) throw const FormatException('BEGIN 格式错误');
+        if (fields.length != 3) {
+          throw const FormatException('Invalid BEGIN frame');
+        }
         final count = int.parse(fields[2]);
         if (count < 0 ||
             count > 256 ||
             (expectedCount != null && expectedCount != count)) {
-          throw const FormatException('记录数量不一致或超过原型上限');
+          throw const FormatException(
+            'Record count mismatch or prototype limit exceeded',
+          );
         }
         expectedCount = count;
         await write('START|$token');
       case 'R':
         if (fields.length != 5 || expectedCount == null || completed) {
-          throw const FormatException('记录在 BEGIN 之前或格式错误');
+          throw const FormatException('Record before BEGIN or invalid format');
         }
         final index = int.parse(fields[2]);
         final file = fields[3];
@@ -48,12 +52,16 @@ class PrototypeSync {
             index > _saved.length ||
             !RegExp(r'^data_[A-Za-z0-9_.-]{1,80}\.txt$').hasMatch(file) ||
             !RegExp(r'^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$').hasMatch(raw)) {
-          throw const FormatException('记录序号、文件名或时间文本无效');
+          throw const FormatException(
+            'Invalid record index, file name or timestamp format',
+          );
         }
         final payload = '$file|$raw';
         if ((_saved.containsKey(index) && _saved[index] != payload) ||
             (!_saved.containsKey(index) && _fileIds.contains(file))) {
-          throw const FormatException('重传内容不一致或文件重复');
+          throw const FormatException(
+            'Conflicting retransmission or duplicate file',
+          );
         }
         await store.save(
           PrototypeRecord(
@@ -72,19 +80,23 @@ class PrototypeSync {
             expectedCount == null ||
             int.parse(fields[2]) != expectedCount ||
             _saved.length != expectedCount) {
-          throw const FormatException('记录未完整保存，不发送 COMMIT');
+          throw const FormatException(
+            'Records have not all been saved; COMMIT not sent',
+          );
         }
         endReceived = true;
         await write('COMMIT|$token');
       case 'DONE':
         if (fields.length != 2 || !endReceived) {
-          throw const FormatException('未完成接收就收到 DONE');
+          throw const FormatException(
+            'DONE received before all records were saved',
+          );
         }
         completed = true;
       case 'ERROR':
-        throw StateError('设备同步错误：${fields.skip(2).join(' ')}');
+        throw StateError('Device sync error: ${fields.skip(2).join(' ')}');
       default:
-        throw const FormatException('未知的原型帧类型');
+        throw const FormatException('Unknown prototype frame type');
     }
   }
 }

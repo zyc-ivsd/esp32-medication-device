@@ -64,6 +64,27 @@ class BleService extends ChangeNotifier {
       _transportOverride ?? (_defaultTransport ??= ReactiveBleTransport());
   PrototypeStore? _store;
   Future<PrototypeStore>? _openingStore;
+  Future<void> Function(DateTime)? _recordSyncCompleted;
+
+  /// Install the diary destination before scanning. This also upgrades every
+  /// retained timestamp from older APKs, including records beyond the UI's 100.
+  Future<void> attachRecordSink({
+    required Future<void> Function(PrototypeRecord) save,
+    required Future<void> Function(DateTime) markSyncCompleted,
+  }) async {
+    if (_sync != null) {
+      throw StateError('Cannot change storage during synchronization');
+    }
+    final existing = await _getStore();
+    final raw = existing is RecordingPrototypeStore
+        ? existing.rawStore
+        : existing;
+    final recording = RecordingPrototypeStore(raw, save);
+    await recording.backfill();
+    _store = recording;
+    _recordSyncCompleted = markSyncCompleted;
+  }
+
   Future<PrototypeStore> _getStore() => _store != null
       ? Future.value(_store!)
       : (_openingStore ??= SqlitePrototypeStore.open()
@@ -129,11 +150,14 @@ class BleService extends ChangeNotifier {
       clockStatus != ClockCalibrationStatus.pending &&
       status != BleConnectionStatus.syncing;
   String get clockStatusLabel => switch (clockStatus) {
-    ClockCalibrationStatus.unavailable => '设备时间：连接后检查',
-    ClockCalibrationStatus.unsupported => '设备时间：旧固件不支持手机校时',
-    ClockCalibrationStatus.pending => '设备时间：正在使用手机时间校准',
-    ClockCalibrationStatus.synced => '设备时间：已按手机时间与时区校准',
-    ClockCalibrationStatus.failed => '设备时间：校准失败，请重试校时',
+    ClockCalibrationStatus.unavailable =>
+      'Device clock: checked after connection',
+    ClockCalibrationStatus.unsupported =>
+      'Device clock: phone calibration is unsupported by this firmware',
+    ClockCalibrationStatus.pending => 'Device clock: calibrating from phone',
+    ClockCalibrationStatus.synced =>
+      'Device clock: calibrated from phone time and timezone',
+    ClockCalibrationStatus.failed => 'Device clock: calibration failed; retry',
   };
   bool get hasConnection => connectedDeviceId != null;
   bool get canSync =>
@@ -145,15 +169,15 @@ class BleService extends ChangeNotifier {
       _sync == null &&
       status != BleConnectionStatus.syncing;
   String get statusLabel => switch (status) {
-    BleConnectionStatus.disconnected => '未连接',
-    BleConnectionStatus.scanning => '扫描中',
-    BleConnectionStatus.connecting => '连接中',
-    BleConnectionStatus.subscribing => '已连接，等待订阅握手',
-    BleConnectionStatus.calibrating => '正在校准设备时间',
-    BleConnectionStatus.ready => '订阅已确认',
-    BleConnectionStatus.syncing => '正在接收并保存',
-    BleConnectionStatus.complete => '原型文本已保存',
-    BleConnectionStatus.error => '需要处理',
+    BleConnectionStatus.disconnected => 'Disconnected',
+    BleConnectionStatus.scanning => 'Scanning',
+    BleConnectionStatus.connecting => 'Connecting',
+    BleConnectionStatus.subscribing => 'Connected; waiting for handshake',
+    BleConnectionStatus.calibrating => 'Calibrating device clock',
+    BleConnectionStatus.ready => 'Ready',
+    BleConnectionStatus.syncing => 'Receiving and saving',
+    BleConnectionStatus.complete => 'Records saved',
+    BleConnectionStatus.error => 'Needs attention',
   };
   StreamSubscription<DiscoveredDevice>? _scan;
   StreamSubscription<ConnectionStateUpdate>? _connection;
@@ -291,7 +315,7 @@ class BleService extends ChangeNotifier {
           if (_disposed || scanEpoch != _scanEpoch) return;
           final info = BleDeviceInfo(
             id: device.id,
-            name: device.name.isEmpty ? 'ESP32 设备' : device.name,
+            name: device.name.isEmpty ? 'ESP32 device' : device.name,
             rssi: device.rssi,
           );
           final index = _devices.indexWhere((d) => d.id == info.id);
@@ -380,7 +404,9 @@ class BleService extends ChangeNotifier {
       _state(BleConnectionStatus.subscribing);
       await _transport.discover(deviceId);
       if (!_active(epoch)) return;
-      _log('服务发现完成，建立 Notify；等待设备 READY 确认');
+      _log(
+        'Services discovered. Subscribing to notifications and waiting for READY.',
+      );
       _notify = _transport
           .subscribe(deviceId)
           .listen(
@@ -413,7 +439,9 @@ class BleService extends ChangeNotifier {
           return;
         }
         if (++attempts > 6) {
-          _fail('设备没有回复 READY。请刷入本次配套固件；旧固件文本仅显示在下方。');
+          _fail(
+            'No READY reply. Use the matching firmware. Received legacy text is shown below.',
+          );
           return;
         }
         try {
@@ -439,12 +467,16 @@ class BleService extends ChangeNotifier {
 
   Future<void> _write(String command, int epoch, {bool Function()? guard}) {
     final bytes = utf8.encode(command);
-    if (bytes.length > 20) throw ArgumentError('控制命令超过 20 字节');
+    if (bytes.length > 20) {
+      throw ArgumentError('Control command exceeds 20 bytes');
+    }
     final pending = _outgoing.then((_) async {
-      if (!_active(epoch) || !_linkConnected) throw StateError('连接已改变，取消旧命令');
+      if (!_active(epoch) || !_linkConnected) {
+        throw StateError('Connection changed; stale command cancelled');
+      }
       if (guard != null && !guard()) return;
       await _transport.write(connectedDeviceId!, bytes);
-      if (_active(epoch)) _log('发送 $command');
+      if (_active(epoch)) _log('Sending $command');
     });
     _outgoing = pending.catchError((Object _) {});
     return pending;
@@ -466,7 +498,9 @@ class BleService extends ChangeNotifier {
           fields[2] != 'P01' ||
           (fields.length == 4 && fields[3] != 'TIME1') ||
           !RegExp(r'^[0-9A-Fa-f]{12}$').hasMatch(fields[1])) {
-        throw const FormatException('设备 READY 格式或协议版本不匹配');
+        throw const FormatException(
+          'READY format or protocol version does not match',
+        );
       }
       if (stableDeviceId != null) return;
       _handshakeTimer?.cancel();
@@ -477,7 +511,9 @@ class BleService extends ChangeNotifier {
           : ClockCalibrationStatus.unsupported;
       _lastDeviceId = connectedDeviceId;
       _state(BleConnectionStatus.ready);
-      _log('收到 READY：通知链路已确认，设备 $stableDeviceId');
+      _log(
+        'READY received: notifications confirmed for device $stableDeviceId',
+      );
       if (usePreferences) {
         final prefs = await SharedPreferences.getInstance();
         if (!_active(epoch)) return;
@@ -489,7 +525,9 @@ class BleService extends ChangeNotifier {
           // serialized notification queue that must deliver that acknowledgment.
           await requestClockCalibration(syncAfter: true);
         } else {
-          _log('旧 P01 固件无 TIME1：保留原同步，原始时间未经手机校准');
+          _log(
+            'Legacy P01 firmware has no TIME1; timestamps have not been calibrated by the phone.',
+          );
           await requestSync();
         }
       }
@@ -509,13 +547,17 @@ class BleService extends ChangeNotifier {
       _syncAfterClock = false;
       lastError = null;
       _state(BleConnectionStatus.ready);
-      _log('校时已获设备确认；历史文件保持原文，不补造过去的时间');
+      _log(
+        'Clock calibration confirmed. Existing file times remain unchanged.',
+      );
       if (syncAfter) await requestSync();
       return;
     }
     if (fields[0] == 'TIME_ERR') {
       if (clockStatus == ClockCalibrationStatus.pending && fields.length == 2) {
-        _fail('设备校时失败（${fields[1]}）；检查固件/NVS 后点击“校准设备时间”');
+        _fail(
+          'Device clock calibration failed (${fields[1]}). Check firmware/NVS and tap Calibrate clock.',
+        );
       }
       return;
     }
@@ -528,10 +570,14 @@ class BleService extends ChangeNotifier {
       _syncTimer?.cancel();
       savedRecords = await _store!.readRecent();
       if (!_active(epoch)) return;
+      await _recordSyncCompleted?.call(_clock());
+      if (!_active(epoch)) return;
       _sync = null;
       _retryCount = 0;
       _state(BleConnectionStatus.complete);
-      _log('本轮 $syncedCount 条原型文本已保存；设备文件保留，可重复同步');
+      _log(
+        'Saved $syncedCount device records. Files remain on the device for safe replay.',
+      );
     } else {
       _armSyncTimeout(epoch);
       _changed();
@@ -545,7 +591,9 @@ class BleService extends ChangeNotifier {
     final offset = now.timeZoneOffset.inMinutes;
     if (utc < 946684800 || utc > 4102444799 || offset.abs() > 840) {
       clockStatus = ClockCalibrationStatus.failed;
-      _fail('手机日期或时区超出支持范围（2000–2099 年、UTC ±14 小时），请检查系统时间');
+      _fail(
+        'Phone date or timezone is out of range (2000–2099; UTC ±14 hours). Check system time.',
+      );
       return;
     }
     final command = 'TIME|${utc.toRadixString(16).padLeft(8, '0')}|$offset';
@@ -562,7 +610,9 @@ class BleService extends ChangeNotifier {
   Future<void> _sendClock(String command, int epoch) async {
     if (!_active(epoch) || _clockCommand != command) return;
     if (_clockAttempts++ >= 3) {
-      _fail('设备校时超时；文件仍保留，请点击“校准设备时间”重试');
+      _fail(
+        'Device clock calibration timed out. Files are retained; tap Calibrate clock to retry.',
+      );
       return;
     }
     try {
@@ -627,7 +677,9 @@ class BleService extends ChangeNotifier {
           if (_active(epoch)) _fail(error);
         }
       } else {
-        _fail('同步超时，已保存的数据仍保留；请点击“重新同步”');
+        _fail(
+          'Sync timed out. Saved records are retained; tap Re-sync to retry.',
+        );
       }
     });
   }
@@ -644,13 +696,13 @@ class BleService extends ChangeNotifier {
     } else {
       _state(BleConnectionStatus.disconnected);
     }
-    _log('连接中断；未完成的记录不会获确认');
+    _log('Connection interrupted. Unfinished records are not acknowledged.');
     if (autoReconnectEnabled &&
         !_suppressed &&
         _retryCount < maxReconnectAttempts) {
       _retryCount++;
       _log(
-        '将在 ${reconnectDelay.inSeconds} 秒后重连（$_retryCount/$maxReconnectAttempts）',
+        'Reconnecting in ${reconnectDelay.inSeconds} s ($_retryCount/$maxReconnectAttempts)',
       );
       _reconnectTimer = Timer(reconnectDelay, () {
         if (_active(lostEpoch) && !_suppressed && autoReconnectEnabled) {
@@ -709,7 +761,9 @@ class BleService extends ChangeNotifier {
             _resumeDeviceId = autoReconnectEnabled ? connectedDeviceId : null;
             _resumeScan = status == BleConnectionStatus.scanning;
             await _disconnectLink();
-            _log('已进入后台，暂停蓝牙；已保存记录保留');
+            _log(
+              'App in background. Bluetooth paused; saved records retained.',
+            );
           } else {
             final device = _resumeDeviceId;
             final scan = _resumeScan;

@@ -11,15 +11,18 @@ void main() {
         MaterialApp(home: BleStatusPage(service: BleService.test())),
       );
 
-      expect(find.text('Prototype v0.1'), findsOneWidget);
-      expect(find.text('未连接'), findsOneWidget);
+      expect(find.text('Sync your medication diary'), findsOneWidget);
+      expect(find.text('Disconnected'), findsOneWidget);
       tester.view.physicalSize = const Size(320, 640);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.scrollUntilVisible(find.text('已保存的原型文本'), 150);
+      await tester.scrollUntilVisible(
+        find.text('Saved device timestamps'),
+        150,
+      );
       expect(tester.takeException(), isNull);
     },
   );

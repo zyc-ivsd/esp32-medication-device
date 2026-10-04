@@ -45,7 +45,10 @@ class _AssistantApiConsoleState extends State<AssistantApiConsole> {
     } catch (_) {
       state = AssistantCredentialState.empty;
       if (mounted) {
-        setState(() => _error = '无法读取已保存的 API，请检查系统设置后重试。');
+        setState(
+          () => _error =
+              'Saved APIs could not be loaded. Check your system settings and try again.',
+        );
       }
     }
     if (!mounted) return;
@@ -64,7 +67,10 @@ class _AssistantApiConsoleState extends State<AssistantApiConsole> {
       await _store.save(next);
     } catch (_) {
       if (mounted) {
-        setState(() => _error = '无法写入系统安全存储，改动没有保存。');
+        setState(
+          () => _error =
+              'Secure storage could not be updated. Your changes were not saved.',
+        );
       }
       return false;
     }
@@ -87,7 +93,10 @@ class _AssistantApiConsoleState extends State<AssistantApiConsole> {
       setState(() => _error = error.message);
       return null;
     } catch (_) {
-      setState(() => _error = '这条配置不完整，请先编辑补全。');
+      setState(
+        () => _error =
+            'This configuration is incomplete. Edit it to fill in the missing fields.',
+      );
       return null;
     }
   }
@@ -121,27 +130,31 @@ class _AssistantApiConsoleState extends State<AssistantApiConsole> {
     }
     // 新增的这条直接设为选中（用户刚加完，就是要用它）。改一条已有配置则不动
     // 选中项——只改地址就被换掉默认 API，是个会让人意外的副作用。
-    await _persist(AssistantCredentialState(
-      profiles: profiles,
-      selectedId: isNew ? saved.id : _state.selectedId,
-    ));
+    await _persist(
+      AssistantCredentialState(
+        profiles: profiles,
+        selectedId: isNew ? saved.id : _state.selectedId,
+      ),
+    );
   }
 
   Future<void> _delete(AssistantProfile profile) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('删除这条 API？'),
-        content: Text('「${profile.name}」和它的凭据会从本机安全存储中删除，无法恢复。'),
+        title: const Text('Delete this API?'),
+        content: Text(
+          '${profile.name} and its credentials will be removed from this phone. This cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             // 和列表行上的「删除」区分开，避免二次确认里两个同名按钮。
-            child: const Text('确认删除'),
+            child: const Text('Delete API'),
           ),
         ],
       ),
@@ -154,19 +167,19 @@ class _AssistantApiConsoleState extends State<AssistantApiConsole> {
     ];
     // 删掉的正好是当前选中的那条时，选中项要一起清空：留着指向已删除档案的 id，
     // 一键切换会一直失败，用户还不知道为什么。
-    final selectedId =
-        _state.selectedId == profile.id ? null : _state.selectedId;
-    await _persist(AssistantCredentialState(
-      profiles: profiles,
-      selectedId: selectedId,
-    ));
+    final selectedId = _state.selectedId == profile.id
+        ? null
+        : _state.selectedId;
+    await _persist(
+      AssistantCredentialState(profiles: profiles, selectedId: selectedId),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      title: const Text('管理 API'),
+      title: const Text('Manage APIs'),
       content: SizedBox(
         width: 420,
         child: _loading
@@ -183,7 +196,7 @@ class _AssistantApiConsoleState extends State<AssistantApiConsole> {
                       const Padding(
                         padding: EdgeInsets.only(bottom: 8),
                         child: Text(
-                          '还没有保存任何 API。添加一个之后，本地和在线就能一键切换。',
+                          'No APIs saved yet. Add one to switch between Local and Online.',
                         ),
                       ),
                     for (final profile in _state.profiles)
@@ -192,8 +205,8 @@ class _AssistantApiConsoleState extends State<AssistantApiConsole> {
                     const Divider(height: 1),
                     const SizedBox(height: 8),
                     Text(
-                      '凭据加密保存在系统安全存储（Android Keystore / iOS Keychain），'
-                      '可随时在此删除。',
+                      'Credentials are encrypted in Android secure storage. '
+                      'You can delete them here at any time.',
                       style: theme.textTheme.bodySmall,
                     ),
                     if (_error != null) ...[
@@ -210,12 +223,12 @@ class _AssistantApiConsoleState extends State<AssistantApiConsole> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('关闭'),
+          child: const Text('Close'),
         ),
         FilledButton.icon(
           onPressed: _loading ? null : () => _edit(null),
           icon: const Icon(Icons.add, size: 18),
-          label: const Text('添加新的 API'),
+          label: const Text('Add new API'),
         ),
       ],
     );
@@ -224,7 +237,7 @@ class _AssistantApiConsoleState extends State<AssistantApiConsole> {
   Widget _buildProfileCard(ThemeData theme, AssistantProfile profile) {
     final selected = profile.id == _state.selectedId;
     final isGateway = profile.mode == OnlineAssistantMode.gateway;
-    final secretLabel = isGateway ? '访问码' : 'API Key';
+    final secretLabel = isGateway ? 'Access code' : 'API Key';
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       color: selected ? theme.colorScheme.secondaryContainer : null,
@@ -255,7 +268,7 @@ class _AssistantApiConsoleState extends State<AssistantApiConsole> {
                     color: theme.colorScheme.primary,
                   ),
                   const SizedBox(width: 4),
-                  Text('当前使用', style: theme.textTheme.labelSmall),
+                  Text('Selected', style: theme.textTheme.labelSmall),
                 ],
               ],
             ),
@@ -277,17 +290,17 @@ class _AssistantApiConsoleState extends State<AssistantApiConsole> {
                 TextButton.icon(
                   onPressed: () => _use(profile),
                   icon: const Icon(Icons.play_arrow_outlined, size: 18),
-                  label: const Text('使用'),
+                  label: const Text('Use'),
                 ),
                 TextButton.icon(
                   onPressed: () => _edit(profile),
                   icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text('编辑'),
+                  label: const Text('Edit'),
                 ),
                 TextButton.icon(
                   onPressed: () => _delete(profile),
                   icon: const Icon(Icons.delete_outline, size: 18),
-                  label: const Text('删除'),
+                  label: const Text('Delete'),
                 ),
               ],
             ),

@@ -7,10 +7,10 @@ void main() {
   // Fixed local clock so calendar-day rules are deterministic.
   final now = DateTime(2026, 9, 29, 10);
 
-  List<String> codesOf(AssistantContext context) =>
-      evaluateObservations(context, now: now)
-          .map((observation) => observation.code)
-          .toList();
+  List<String> codesOf(AssistantContext context) => evaluateObservations(
+    context,
+    now: now,
+  ).map((observation) => observation.code).toList();
 
   test('没有记录时直接返回，不推断其它结论', () {
     expect(codesOf(const AssistantContext()), ['no_records']);
@@ -27,10 +27,10 @@ void main() {
       now: now,
     );
     final blank = observations.firstWhere((item) => item.code == 'blank_days');
-    expect(blank.text, contains('5 天没有设备记录'));
+    expect(blank.text, contains('5 of the last 7 days have no device records'));
     expect(blank.level, ObservationLevel.info);
     final gap = observations.firstWhere((item) => item.code == 'recent_gap');
-    expect(gap.text, contains('连续 4 天'));
+    expect(gap.text, contains('4 consecutive days'));
     expect(gap.level, ObservationLevel.attention);
   });
 
@@ -44,17 +44,21 @@ void main() {
       ),
       now: now,
     );
-    final uneven = observations.firstWhere((item) => item.code == 'uneven_days');
-    expect(uneven.text, contains('1–5'));
-    expect(uneven.text, contains('不等于服药次数'));
+    final uneven = observations.firstWhere(
+      (item) => item.code == 'uneven_days',
+    );
+    expect(uneven.text, contains('1 to 5'));
+    expect(uneven.text, contains('do not verify ingestion'));
     // 单日只有 1 次时不应报波动。
     expect(
-      codesOf(AssistantContext(
-        totalCount: 2,
-        last7DaysCount: 2,
-        dailyCounts: const [0, 1, 0, 1, 0, 0, 0],
-        lastSyncAt: DateTime(2026, 9, 29),
-      )),
+      codesOf(
+        AssistantContext(
+          totalCount: 2,
+          last7DaysCount: 2,
+          dailyCounts: const [0, 1, 0, 1, 0, 0, 0],
+          lastSyncAt: DateTime(2026, 9, 29),
+        ),
+      ),
       isNot(contains('uneven_days')),
     );
   });
@@ -87,17 +91,22 @@ void main() {
 
   test('同步过旧按日历天判断，边界为三天', () {
     List<String> codesForSync(DateTime? lastSyncAt) => codesOf(
-          AssistantContext(
-            totalCount: 3,
-            last7DaysCount: 1,
-            dailyCounts: const [0, 0, 0, 0, 0, 0, 1],
-            lastSyncAt: lastSyncAt,
-          ),
-        );
+      AssistantContext(
+        totalCount: 3,
+        last7DaysCount: 1,
+        dailyCounts: const [0, 0, 0, 0, 0, 0, 1],
+        lastSyncAt: lastSyncAt,
+      ),
+    );
 
-    expect(codesForSync(DateTime(2026, 9, 29, 1)), isNot(contains('stale_sync')));
-    expect(codesForSync(const AssistantContext().lastSyncAt),
-        contains('never_synced'));
+    expect(
+      codesForSync(DateTime(2026, 9, 29, 1)),
+      isNot(contains('stale_sync')),
+    );
+    expect(
+      codesForSync(const AssistantContext().lastSyncAt),
+      contains('never_synced'),
+    );
     // 26 日到 29 日恰好三天，按“至少三天”提醒。
     expect(codesForSync(DateTime(2026, 9, 26, 23)), contains('stale_sync'));
     final stale = evaluateObservations(
@@ -109,7 +118,7 @@ void main() {
       ),
       now: now,
     ).firstWhere((item) => item.code == 'stale_sync');
-    expect(stale.text, contains('已 9 天'));
+    expect(stale.text, contains('9 days ago'));
   });
 
   test('同步时间晚于当前时间时单独提醒，而不是静默跳过', () {
@@ -122,9 +131,11 @@ void main() {
       ),
       now: now,
     );
-    final future = observations.firstWhere((item) => item.code == 'future_sync');
-    expect(future.text, contains('晚于当前时间'));
-    expect(future.text, contains('核对设备时间'));
+    final future = observations.firstWhere(
+      (item) => item.code == 'future_sync',
+    );
+    expect(future.text, contains('in the future'));
+    expect(future.text, contains('check the device clock'));
     expect(future.level, ObservationLevel.attention);
     // 差值为负，stale_sync 本来就触发不了，所以必须由 future_sync 兜住。
     expect(
@@ -176,17 +187,17 @@ void main() {
     );
     expect(
       deviceObservations.firstWhere((item) => item.code == 'unknown_time').text,
-      contains('设备校时'),
+      contains('check the device clock'),
     );
     expect(
       deviceObservations.firstWhere((item) => item.code == 'future_time').text,
-      contains('核对设备时间'),
+      contains('check the device clock'),
     );
   });
 
   test('本地助手把需要留意的观察追加到具体回答之后', () async {
     final answer = await MockAssistantProvider(now: now).reply(
-      question: '今天用了几次？',
+      question: 'How many uses today?',
       // 这次没有 lastSyncAt，参数全是常量，所以这里可以用 const。
       // 注意 dailyCounts 不能再写 const：在 const 上下文中它已经是常量，
       // 重复标注会触发 unnecessary_const。
@@ -197,14 +208,14 @@ void main() {
         dailyCounts: [0, 1, 0, 2, 0, 0, 0],
       ),
     );
-    expect(answer, contains('今天使用 0 次'));
-    expect(answer, contains('需要留意'));
-    expect(answer, contains('缺少时间信息'));
+    expect(answer, contains('0 uses today'));
+    expect(answer, contains('Needs attention'));
+    expect(answer, contains('unknown times'));
   });
 
   test('“建议”入口只输出事实观察', () async {
     final answer = await MockAssistantProvider(now: now).reply(
-      question: '有什么建议？',
+      question: 'What needs attention?',
       context: AssistantContext(
         totalCount: 9,
         last7DaysCount: 3,
@@ -213,9 +224,9 @@ void main() {
         lastSyncAt: DateTime(2026, 9, 29),
       ),
     );
-    expect(answer, contains('不是医疗建议'));
-    expect(answer, contains('疑似无效事件'));
-    expect(answer, contains('不能确认实际服药'));
+    expect(answer, contains('fixed rules'));
+    expect(answer, contains('suspected invalid uses'));
+    expect(answer, contains('do not verify ingestion'));
     expect(answer, isNot(contains('漏服')));
     expect(answer, isNot(contains('剂量')));
   });

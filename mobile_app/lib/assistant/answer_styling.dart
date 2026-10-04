@@ -17,10 +17,12 @@ class AnswerSpan {
 }
 
 /// 开头声明（在线通用知识回答会把这句放在最前面）。
-final RegExp _leadNotice = RegExp(r'^（[^（）]*不是你的设备记录[^（）]*）');
+final RegExp _leadNotice = RegExp(
+  r'^(?:\(General AI health information[^)]*\)|（[^（）]*不是你的设备记录[^（）]*）)',
+);
 
 /// 结尾的「提醒：…」（在线回答数字回验不通过时追加）。
-final RegExp _trailingAlert = RegExp(r'（提醒：[^（）]*）\s*$');
+final RegExp _trailingAlert = RegExp(r'(?:\(Notice:[^)]*\)|（提醒：[^（）]*）)\s*$');
 
 /// 把一条回答拆成带样式的片段。
 ///
@@ -46,7 +48,8 @@ List<AnswerSpan> styleAnswer(String text, {Set<int> dataNumbers = const {}}) {
   }
 
   // 本地规则会把「需要留意：…」追加在回答末尾。
-  final caret = rest.lastIndexOf('需要留意：');
+  final englishCaret = rest.lastIndexOf('Needs attention:');
+  final caret = englishCaret >= 0 ? englishCaret : rest.lastIndexOf('需要留意：');
   final body = caret >= 0 ? rest.substring(0, caret) : rest;
 
   spans.addAll(_highlightNumbers(body, dataNumbers));
@@ -69,7 +72,12 @@ bool _followedByCountUnit(String text, int from) {
   while (i < text.length && (text[i] == ' ' || text[i] == '　')) {
     i++;
   }
-  return i < text.length && (text[i] == '次' || text[i] == '条');
+  return i < text.length &&
+      ((text[i] == '次' || text[i] == '条') ||
+          RegExp(
+            r'^(?:uses?|records?|times?)\b',
+            caseSensitive: false,
+          ).hasMatch(text.substring(i)));
 }
 
 /// 正文里的整数，命中 [dataNumbers] 且后面紧跟「次 / 条」的标成个人数据（蓝色）。
@@ -85,7 +93,8 @@ List<AnswerSpan> _highlightNumbers(String text, Set<int> dataNumbers) {
       spans.add(AnswerSpan(text.substring(index, match.start)));
     }
     final value = int.tryParse(match.group(0)!);
-    final isData = value != null &&
+    final isData =
+        value != null &&
         dataNumbers.contains(value) &&
         _followedByCountUnit(text, match.end);
     spans.add(

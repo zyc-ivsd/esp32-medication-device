@@ -42,7 +42,7 @@ class _UnreadableStore implements AssistantCredentialsStore {
 
 const _gateway = AssistantProfile(
   id: 'g1',
-  name: '团队网关',
+  name: 'Team gateway',
   mode: OnlineAssistantMode.gateway,
   endpoint: 'https://assistant.example.com/v1/assistant/chat',
   accessToken: 'gateway-code',
@@ -160,7 +160,7 @@ void main() {
       name: '空',
       mode: OnlineAssistantMode.ownModel,
     );
-    expect(empty.maskedSecret, '未填写');
+    expect(empty.maskedSecret, 'Not set');
   });
 
   test('没填名字时用模式或模型名兜底，withName 只换名字', () {
@@ -176,13 +176,13 @@ void main() {
       name: '',
       mode: OnlineAssistantMode.gateway,
     );
-    expect(gatewayNoName.autoName(), '团队网关');
+    expect(gatewayNoName.autoName(), 'Team gateway');
     const noModel = AssistantProfile(
       id: 'z',
       name: '',
       mode: OnlineAssistantMode.ownModel,
     );
-    expect(noModel.autoName(), '我的模型');
+    expect(noModel.autoName(), 'My model');
 
     final renamed = ownModelNoName.withName('通义');
     expect(renamed.name, '通义');
@@ -193,10 +193,7 @@ void main() {
   test('按选中项构造对应的 provider', () async {
     final fromOwnModel = await buildSelectedProvider(
       _MemoryStore(
-        const AssistantCredentialState(
-          profiles: [_ownModel],
-          selectedId: 'm1',
-        ),
+        const AssistantCredentialState(profiles: [_ownModel], selectedId: 'm1'),
       ),
     );
     expect(fromOwnModel, isA<DirectLlmAssistantProvider>());

@@ -1,3 +1,5 @@
+import 'question_routing.dart';
+
 /// 助手可检索的设备知识库（RAG 的检索端），**运行时语料的唯一来源**。
 ///
 /// 语料就是这里。早期另有 `server/assistant-gateway/knowledge/` 下的一份 markdown 副本，
@@ -45,203 +47,210 @@ class KnowledgeChunk {
 const List<KnowledgeChunk> assistantKnowledge = [
   KnowledgeChunk(
     id: 'boundary.dose',
-    title: '设备能测出我吃了多少药吗',
-    body: '设备只记录用药动作次数，不测量剂量，也不能确认药是否真的被服用。'
-        '它不能告诉你吃了多少药。',
-    keywords: [
-      '测出',
-      '吃多少',
-      '多少药',
-      '剂量',
-      '药量',
-      '吃几片',
-      '用量',
-      '一次吃多少',
-    ],
+    title: 'Can the device measure my medication dose?',
+    body:
+        'The device logs use times and counts; it does not measure dose or verify ingestion. '
+        'It cannot determine how much medication you took.',
+    keywords: ['测出', '吃多少', '多少药', '剂量', '药量', '吃几片', '用量', '一次吃多少'],
   ),
   KnowledgeChunk(
     id: 'boundary.adherence',
-    title: '记录能证明我吃药了吗',
-    body: '动作次数只代表装置被使用过，不证明实际服药；没有记录也不等于漏服。'
-        '设备数据只有近 7 天逐日统计，更早的规律无法判断。',
+    title: 'Do records prove that I took medication?',
+    body:
+        'A recorded use means the device was triggered; it does not verify ingestion. A missing record does not establish a missed dose. '
+        'The assistant receives daily totals for the last 7 days, not a complete long-term timeline.',
     keywords: ['服药', '吃药', '规律', '证明', '上个月', '漏服', '补服', '忘吃'],
   ),
   KnowledgeChunk(
     id: 'sync.storage_unavailable',
-    title: '同步提示 STORAGE_UNAVAILABLE',
-    body: '设备文件系统不可用（尚未初始化或挂载失败）。已经保存的记录不会因此被删除。'
-        '由硬件组确认板上无须保留数据后初始化文件系统，'
-        '不要在 App 里尝试修复或格式化设备。',
-    keywords: [
-      'STORAGE_UNAVAILABLE',
-      '存储不可用',
-      '文件系统',
-      '存储',
-      '格式化',
-    ],
+    title: 'Sync reports STORAGE_UNAVAILABLE',
+    body:
+        'The device filesystem is unavailable. Saved records are retained. '
+        'Ask the hardware team to inspect the filesystem after securing any data. '
+        'The app cannot repair or format the device.',
+    keywords: ['STORAGE_UNAVAILABLE', '存储不可用', '文件系统', '存储', '格式化'],
   ),
   KnowledgeChunk(
     id: 'sync.read_failed',
-    title: '同步提示 READ_FAILED',
-    body: '读取某条记录的文件失败。该文件被保留，不会被当作已同步删除。'
-        '重新同步通常可以重试；若持续失败，交给硬件组检查存储。',
+    title: 'Sync reports READ_FAILED',
+    body:
+        'The device could not read a record file. The file is retained. '
+        'Try Re-sync. If it continues failing, ask the hardware team to inspect storage.',
     keywords: ['READ_FAILED', '读取失败', '读不出来'],
   ),
   KnowledgeChunk(
     id: 'sync.bad_file',
-    title: '同步提示 BAD_FILE',
-    body: '某个文件的大小或内容不符合记录格式（例如文件被截断，'
-        '或时间字段不是有效时间戳）。该文件被跳过并保留。',
+    title: 'Sync reports BAD_FILE',
+    body:
+        'A file has an invalid size or format, such as a truncated file '
+        'or malformed timestamp. It is retained for inspection.',
     keywords: ['BAD_FILE', '坏文件', '文件损坏', '格式不对'],
   ),
   KnowledgeChunk(
     id: 'sync.too_many_files',
-    title: '同步提示 TOO_MANY_FILES',
-    body: '设备上的记录文件数量超过上限（当前固件 256 个）。'
-        '需要先完成同步并提交回收，再继续记录。',
+    title: 'Sync reports TOO_MANY_FILES',
+    body:
+        'The device has more than the current limit of 256 record files. '
+        'The current firmware retains files even after COMMIT; ask the hardware team to add paging or safe retention after backing up the records.',
     keywords: ['TOO_MANY_FILES', '文件太多', '文件数量', '满了', '256'],
   ),
   KnowledgeChunk(
     id: 'sync.ack_timeout',
-    title: '同步提示 ACK_TIMEOUT',
-    body: '设备在等待手机确认（ACK）时超时。记录不会被删除，重新同步可以继续。',
+    title: 'Sync reports ACK_TIMEOUT',
+    body:
+        'The phone did not acknowledge a frame before the retry limit. Files are retained; try Re-sync.',
     keywords: ['ACK_TIMEOUT', '确认超时', '等待确认'],
   ),
   KnowledgeChunk(
     id: 'sync.general',
-    title: '同步失败怎么办',
-    body: '先重试一次同步；若仍失败，检查蓝牙是否连上、设备电量是否充足，'
-        '必要时在设备上重新校时后再次同步。具体错误码会显示在提示里，'
-        '可按错误码进一步排查；不要在 App 里尝试修复或格式化设备。',
-    keywords: [
-      '同步失败',
-      '同步不了',
-      '同步不成功',
-      '同步出错',
-      '同步错误',
-      '连不上',
-    ],
+    title: 'What should I do when sync fails?',
+    body:
+        'Try Re-sync, check Bluetooth and battery, '
+        'and calibrate the device clock if needed. The error code can help identify the cause. '
+        'Do not format device storage from the app.',
+    keywords: ['同步失败', '同步不了', '同步不成功', '同步出错', '同步错误', '连不上'],
   ),
   KnowledgeChunk(
     id: 'time.unknown',
-    title: '为什么有条记录显示时间未知',
-    body: '记录的时间戳为 0 时视为时间未知，常见原因是设备尚未通过校时。'
-        '这类记录不计入按日统计。',
+    title: 'Why does a record have an unknown time?',
+    body:
+        'A missing timestamp, invalid calendar date or the firmware clock placeholder is treated as unknown. '
+        'It is kept for review and excluded from daily use counts.',
     keywords: ['时间未知', '未知时间', '没时间', '时间戳'],
   ),
   KnowledgeChunk(
     id: 'time.future',
-    title: '为什么有条记录的时间是未来',
-    body: '记录时间晚于手机当前时间时，会先被排除在按日统计之外。'
-        '通常是设备时间不准，建议核对设备的时间设置。',
+    title: 'Why is a record dated in the future?',
+    body:
+        'Records later than the current phone time are excluded from daily counts. '
+        'Check the device clock. Calibration does not rewrite older files.',
     keywords: ['未来时间', '时间不对', '时间错', '校时', '时间晚了'],
   ),
   KnowledgeChunk(
     id: 'privacy.upload',
-    title: '在线提问会发送什么',
-    body: '在线只发送本次问题与当前统计摘要（几个计数和近 7 天逐日次数），'
-        '不上传原始记录、设备标识或历史对话。',
+    title: 'What does an online question send?',
+    body:
+        'Online sends your current question, a record summary and matching app-use references. '
+        'Raw records and device identifiers are excluded. Relevant session history is sent only if you enable that option for your own model.',
     keywords: ['上传', '隐私', '发送什么', '会发送', '联网'],
   ),
   KnowledgeChunk(
     id: 'privacy.local',
-    title: '本地模式会联网吗',
-    body: '本地规则助手完全在手机本地计算，不联网、不需要账号，也不上传任何记录。',
+    title: 'Does Local mode connect to the internet?',
+    body:
+        'Local uses fixed rules on this phone. It needs no network or account and uploads no records.',
     keywords: ['本地', '离线', '不联网', '断网'],
   ),
   KnowledgeChunk(
     id: 'maintain.bluetooth',
-    title: '蓝牙连不上装置',
-    body: '检查设备电量与充电、确认同步按键位置、必要时重新扫描广播窗口；'
-        '要在 App 里主动扫描，而不是系统蓝牙配对。',
+    title: 'Why can I not connect over Bluetooth?',
+    body:
+        'Check power, wake the device with its button and scan in the app. '
+        'Connect inside the app, rather than pairing in system Bluetooth settings.',
     keywords: ['蓝牙', '连不上', '连接不上', '扫描', '配对', 'ble'],
   ),
   KnowledgeChunk(
     id: 'term.daily',
-    title: '近 7 天逐日次数怎么算',
-    body: '近 7 天逐日次数只统计使用动作，未知与未来时间不计入。'
-        '总和等于近 7 天总数。',
+    title: 'How are daily use counts calculated?',
+    body:
+        'Each unique device timestamp with a valid date records one use; valid structured use events are also counted. Unknown and future times are excluded. '
+        'The seven daily counts add up to the weekly total. Timestamp files retain their original device calendar date.',
     keywords: ['逐日', '每天', '口径', '近 7 天', '近7天', '每日'],
   ),
   KnowledgeChunk(
     id: 'term.total',
-    title: '总条数是怎么算的',
-    body: '总条数是本地保存的全部记录条数，包含时间未知和未来时间的记录；'
-        '今日与近 7 天只统计使用动作。',
+    title: 'How is the total record count calculated?',
+    body:
+        'The total includes all saved entries, including records with unknown or future times. '
+        'Today and Last 7 days count only use entries with an eligible time.',
     keywords: ['总条数', '一共', '多少条', '总量', '全部记录'],
   ),
   KnowledgeChunk(
     id: 'term.invalid',
-    title: '疑似无效事件是什么意思',
-    body: '疑似无效事件是设备上报为 event_type=2 的记录，通常表示该次动作可能无效；'
-        '可在历史记录里查看原始信息。',
+    title: 'What is a suspected invalid use?',
+    body:
+        'Only structured event_type=2 records are marked as suspected invalid uses. Timestamp-only records have no pressure or confidence measurements. '
+        'Open History to inspect the original details.',
     keywords: ['疑似无效', '无效事件', '无效记录', '异常记录'],
   ),
   KnowledgeChunk(
     id: 'time.last_sync',
-    title: '最后一次同步时间是什么意思',
-    body: '最后一次同步时间只反映本机数据的新旧，不影响记录本身。'
-        '距上次同步超过 3 天时，统计可能不含最新记录。',
+    title: 'What does the last sync time mean?',
+    body:
+        'It is updated only after the device sends DONE for a fully saved sync. '
+        'If the last sync was more than 3 days ago, newer device entries may be missing.',
     keywords: ['同步时间', '最后同步', 'last_sync', '多久没同步'],
   ),
   KnowledgeChunk(
     id: 'history.toggle',
-    title: '「带上本轮对话」会发送什么',
-    body: '默认不发送历史对话。开启后，只有使用「我自己的模型」时，'
-        '才会把本轮更早的问答一起发给模型，帮助理解追问；'
-        '仍不发送原始记录、设备标识，也不会把历史发给团队服务器。',
+    title: 'What does Include this session send?',
+    body:
+        'Chat history is excluded by default. If enabled, your own model receives '
+        'relevant earlier turns from the current session to understand follow-ups. '
+        'Raw records and device identifiers are still excluded; history is not sent to the team gateway.',
     keywords: ['带上本轮', '多轮', '历史对话', '上下文', '追问'],
   ),
   KnowledgeChunk(
     id: 'app.data_source',
-    title: '设备记录从哪里来',
+    title: 'Where do device records come from?',
     body:
-        'App 使用设备同步后保存在手机中的记录。概览、历史、CSV 和助手统计都读取设备事件。'
-        '请在概览页打开设备连接页进行蓝牙连接和同步；连接页单独展示收到的原始时间文本。',
+        'The app converts each unique button timestamp into a medication-use entry saved on this phone. Overview, History, CSV and the assistant use the same saved records. '
+        'Device connection also retains the original device text for inspection.',
     keywords: ['数据来源', '记录来源', '数据从哪', '导入记录', '接收数据'],
   ),
   KnowledgeChunk(
     id: 'app.export',
-    title: '怎么把记录导出来',
-    body: '在历史记录页可以把当前筛选结果导出成 CSV 文件；'
-        '导出的是已保存的正式记录，不含原型时间文本，也不含任何凭据。',
+    title: 'How do I export records?',
+    body:
+        'Open History and export the currently filtered records as CSV. '
+        'Timestamp entries include the original text and file identity; unavailable measurements and UTC fields are left blank. Credentials are excluded.',
     keywords: ['导出', 'CSV', 'csv', '表格', '分享', 'Excel', 'excel'],
   ),
   KnowledgeChunk(
     id: 'app.clear',
-    title: '清空对话会删除用药记录吗',
-    body: '助手页右上角「更多」→「清空对话」只删除本机保存的聊天记录（会先确认一次），'
-        '不影响用药记录本身。',
+    title: 'Does clearing chat delete medication records?',
+    body:
+        'More → Clear chat deletes only saved chat messages after confirmation. '
+        'Medication records are kept.',
     keywords: ['清空对话', '清空', '删对话', '删除对话', '删聊天', '删除聊天', '聊天记录'],
   ),
   KnowledgeChunk(
     id: 'app.search',
-    title: '怎么搜索历史对话',
-    body: '点助手页右上角的放大镜图标，按关键词筛选历史对话；'
-        '搜索只在本地进行，不发任何网络请求。',
+    title: 'How do I search chat history?',
+    body:
+        'Tap the search icon at the top of the assistant to filter saved chat messages by keyword. '
+        'Search runs only on your phone and does not send network requests.',
     keywords: ['搜索', '查找对话', '找对话', '搜对话', '筛选'],
   ),
   KnowledgeChunk(
     id: 'app.tts',
-    title: '回答能朗读吗',
-    body: '每条助手回答右下角有「朗读」按钮，用手机的 Android 系统语音朗读；'
-        '能否离线取决于手机安装的语音引擎和中文语音包；'
-        '朗读时那个按钮会变成「停止」，再点一次就停，没读到的部分会显示成灰色；'
-        '「更多」→「朗读设置」可开自动朗读、调语速和音调。',
+    title: 'Can answers be read aloud?',
+    body:
+        'Tap Read aloud beside an answer to use Android text-to-speech. '
+        'Offline playback depends on an installed English voice and its engine. '
+        'Tap Stop to end playback. '
+        'More → Read-aloud settings controls automatic playback, speed and pitch.',
     keywords: ['朗读', '读出来', '读回答', '语音', '语速', '音调'],
   ),
   KnowledgeChunk(
     id: 'app.large_text',
-    title: '字太小看不清怎么办',
-    body: '助手页「更多」→「大字模式」把整页文字放大一档，方便阅读。',
-    keywords: ['大字', '字号', '字体', '字太小', '看不清'],
+    title: 'How do I make the text larger?',
+    body: 'On the assistant page, open More → Larger text.',
+    keywords: [
+      'Tap the search icon on the assistant page to filter saved messages by keyword. ',
+      'Search runs locally without a network request.',
+      '字体',
+      '字太小',
+      '看不清',
+    ],
   ),
   KnowledgeChunk(
     id: 'app.online',
-    title: '怎么启用在线助手',
-    body: '在助手页顶部点「在线」即可联网问答；第一次会引导添加自己的模型服务'
-        '（地址 + 你自己的 API Key + 模型名）。Key 加密保存在手机、调用时直接发给所选模型服务，'
-        '不经过团队服务器；没配置过也可以先用「本地」。',
+    title: 'How do I enable the online assistant?',
+    body:
+        'Tap Online and add your model service '
+        '(URL, your own API key and model name). The key is encrypted on this phone and sent directly to your chosen service. '
+        'You can use Local without configuring a model.',
     keywords: ['在线', '联网', '加 api', '添加 api', '接入', '自己的模型', '模型服务', 'api key'],
   ),
 ];
@@ -251,7 +260,7 @@ const List<KnowledgeChunk> assistantKnowledge = [
 /// 这样「近7天」「近 7 天」都能命中「近 7 天」，「BLE 连不上」也能命中
 /// 小写的 `ble`，错误码的大小写与下划线也不再敏感。
 String _canonical(String text) {
-  final lower = text.toLowerCase();
+  final lower = normalizeAssistantQuestion(text);
   final buffer = StringBuffer();
   for (final rune in lower.runes) {
     final ch = String.fromCharCode(rune);

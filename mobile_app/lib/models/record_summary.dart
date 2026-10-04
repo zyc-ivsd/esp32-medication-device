@@ -49,23 +49,45 @@ class RecordSummary {
     var future = 0;
     for (final record in records) {
       total++;
-      final eventTime = record.occurredAt?.toLocal();
+      final eventTime = record.localOccurredAt;
       if (eventTime == null) {
         unknown++;
         continue;
       }
-      if (eventTime.isAfter(localNow)) {
+      final calendarNow = DateTime.utc(
+        localNow.year,
+        localNow.month,
+        localNow.day,
+        localNow.hour,
+        localNow.minute,
+        localNow.second,
+      );
+      final calendarEvent = DateTime.utc(
+        eventTime.year,
+        eventTime.month,
+        eventTime.day,
+        eventTime.hour,
+        eventTime.minute,
+        eventTime.second,
+      );
+      if (calendarEvent.isAfter(calendarNow)) {
         future++;
         continue;
       }
-      if (eventTime.isBefore(start)) continue;
+      if (calendarEvent.isBefore(
+        DateTime.utc(start.year, start.month, start.day),
+      )) {
+        continue;
+      }
       if (record.eventType == 2) invalid++;
       if (record.eventType != 1) continue;
       // Calendar comparison avoids 23/25-hour DST day rounding errors.
-      final index = days.indexWhere((day) =>
-          day.year == eventTime.year &&
-          day.month == eventTime.month &&
-          day.day == eventTime.day);
+      final index = days.indexWhere(
+        (day) =>
+            day.year == eventTime.year &&
+            day.month == eventTime.month &&
+            day.day == eventTime.day,
+      );
       if (index >= 0) counts[index]++;
     }
     return RecordSummary(

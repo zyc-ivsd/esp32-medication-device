@@ -9,21 +9,22 @@ import 'package:medication_device_app/services/csv_export_service.dart';
 import 'package:medication_device_app/services/record_controller.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-MedicationRecord record(
-        {int seq = 1,
-        int timestamp = 0,
-        int type = 1,
-        String deviceId = 'device-a',
-        int confidence = 92}) =>
-    MedicationRecord(
-        deviceId: deviceId,
-        seq: seq,
-        timestamp: timestamp,
-        eventType: type,
-        durationMs: 1200,
-        pressurePeakPa: -84,
-        confidence: confidence,
-        batteryMv: 3700);
+MedicationRecord record({
+  int seq = 1,
+  int timestamp = 0,
+  int type = 1,
+  String deviceId = 'device-a',
+  int confidence = 92,
+}) => MedicationRecord(
+  deviceId: deviceId,
+  seq: seq,
+  timestamp: timestamp,
+  eventType: type,
+  durationMs: 1200,
+  pressurePeakPa: -84,
+  confidence: confidence,
+  batteryMv: 3700,
+);
 int unix(DateTime time) => time.millisecondsSinceEpoch ~/ 1000;
 
 void main() {

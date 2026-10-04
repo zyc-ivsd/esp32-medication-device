@@ -30,7 +30,7 @@ class RecordController extends ChangeNotifier {
 
   RecordRepository get repository => deviceRepository;
   List<MedicationRecord> get visibleRecords => records
-      .where((record) => filter.accepts(record.timestamp))
+      .where((record) => filter.acceptsLocalTime(record.localOccurredAt))
       .toList(growable: false);
 
   void setFilter(RecordFilter value) {
@@ -67,14 +67,17 @@ class RecordController extends ChangeNotifier {
       final lastSync = await repo.lastSyncAt();
       if (_disposed || revision != _revision) return;
       records = List.unmodifiable(data);
-      summary =
-          RecordSummary.calculate(data, now: clock(), lastSyncAt: lastSync);
+      summary = RecordSummary.calculate(
+        data,
+        now: clock(),
+        lastSyncAt: lastSync,
+      );
     } catch (_) {
       if (_disposed || revision != _revision) return;
       // Do not display/export stale data as a successful refresh.
       records = const [];
       summary = null;
-      error = '暂时无法读取本地记录，请重试。';
+      error = 'Cannot read local records. Please try again.';
     } finally {
       if (!_disposed && revision == _revision) {
         loading = false;

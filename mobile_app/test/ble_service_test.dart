@@ -86,6 +86,8 @@ class MemoryTextStore implements PrototypeStore {
   @override
   Future<List<PrototypeRecord>> readRecent() async => rows.values.toList();
   @override
+  Future<List<PrototypeRecord>> readAll() => readRecent();
+  @override
   Future<void> close() async {
     closed = true;
   }

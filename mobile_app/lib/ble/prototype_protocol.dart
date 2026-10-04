@@ -17,12 +17,14 @@ String encodePrototypeFrame(String body) =>
 
 List<String> decodePrototypeFrame(String line) {
   final separator = line.lastIndexOf('|');
-  if (separator < 0) throw const FormatException('旧版或不完整的文本帧');
+  if (separator < 0) {
+    throw const FormatException('Legacy or incomplete text frame');
+  }
   final body = line.substring(0, separator);
   final checksum = line.substring(separator + 1);
   if (!RegExp(r'^[0-9a-fA-F]{4}$').hasMatch(checksum) ||
       int.parse(checksum, radix: 16) != prototypeCrc(utf8.encode(body))) {
-    throw const FormatException('CRC 校验失败，不确认此帧');
+    throw const FormatException('CRC check failed; frame not acknowledged');
   }
   return body.split('|');
 }
@@ -42,7 +44,7 @@ class PrototypeLineBuffer {
           try {
             result.add(utf8.decode(_pending).replaceFirst(RegExp(r'\r$'), ''));
           } on FormatException {
-            result.add('[无效 UTF-8，等待设备重发]');
+            result.add('[Invalid UTF-8; waiting for device retry]');
           }
         }
         reset();

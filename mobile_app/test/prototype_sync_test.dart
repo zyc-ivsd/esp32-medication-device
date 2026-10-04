@@ -19,6 +19,8 @@ class GatedStore implements PrototypeStore {
   @override
   Future<List<PrototypeRecord>> readRecent() async => rows;
   @override
+  Future<List<PrototypeRecord>> readAll() => readRecent();
+  @override
   Future<void> close() async {}
 }
 

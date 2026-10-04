@@ -33,7 +33,7 @@ List<AssistantObservation> evaluateObservations(
     return const [
       AssistantObservation(
         'no_records',
-        '当前还没有任何记录。',
+        'There are no saved records yet.',
         ObservationLevel.info,
       ),
     ];
@@ -46,7 +46,7 @@ List<AssistantObservation> evaluateObservations(
     observations.add(
       const AssistantObservation(
         'never_synced',
-        '还没有记录过同步时间，无法判断数据新旧；下面的统计只基于本机已有数据。',
+        'No completed sync has been recorded. These statistics use only records saved on this phone.',
         ObservationLevel.attention,
       ),
     );
@@ -54,12 +54,14 @@ List<AssistantObservation> evaluateObservations(
 
   final blankDays = context.dailyCounts.where((count) => count == 0).length;
   if (blankDays > 0) {
-    observations.add(AssistantObservation(
-      'blank_days',
-      '近 $windowDays 天中有 $blankDays 天没有设备记录。'
-          '这只说明当天没有设备动作，不能确认是否服药。',
-      ObservationLevel.info,
-    ));
+    observations.add(
+      AssistantObservation(
+        'blank_days',
+        '$blankDays of the last $windowDays days have no device records. '
+            'A missing record does not establish a missed dose.',
+        ObservationLevel.info,
+      ),
+    );
   }
 
   final activeDays = context.dailyCounts.where((count) => count > 0).toList();
@@ -67,12 +69,14 @@ List<AssistantObservation> evaluateObservations(
     final lowest = activeDays.reduce((a, b) => a < b ? a : b);
     final highest = activeDays.reduce((a, b) => a > b ? a : b);
     if (highest - lowest >= 2) {
-      observations.add(AssistantObservation(
-        'uneven_days',
-        '有记录的日次数在 $lowest–$highest 之间波动，分布不均匀。'
-            '设备动作次数不等于服药次数。',
-        ObservationLevel.info,
-      ));
+      observations.add(
+        AssistantObservation(
+          'uneven_days',
+          'Daily counts on days with records range from $lowest to $highest. '
+              'Logged uses do not verify ingestion.',
+          ObservationLevel.info,
+        ),
+      );
     }
   }
 
@@ -82,72 +86,79 @@ List<AssistantObservation> evaluateObservations(
     trailingBlankDays++;
   }
   if (trailingBlankDays >= 2) {
-    const advice = '若装置仍在使用，建议检查电量、按键和蓝牙同步是否正常。';
+    const advice =
+        'If you are still using the device, check its battery, button and Bluetooth sync.';
     observations.add(
       AssistantObservation(
         'recent_gap',
-        '到今天为止已连续 $trailingBlankDays 天没有设备记录。$advice',
+        'There have been no device records for $trailingBlankDays consecutive days, including today. $advice',
         ObservationLevel.attention,
       ),
     );
   }
 
   if (context.unknownTimeCount > 0) {
-    const advice = '，建议为设备校时后重新同步';
+    const advice = '; check the device clock and sync again';
     observations.add(
       AssistantObservation(
         'unknown_time',
-        '有 ${context.unknownTimeCount} 条记录缺少时间信息，无法计入按日统计$advice。',
+        '${context.unknownTimeCount} records have unknown times and are excluded from daily counts$advice.',
         ObservationLevel.attention,
       ),
     );
   }
 
   if (context.futureTimeCount > 0) {
-    const advice = '，建议核对设备时间设置';
+    const advice = '; check the device clock';
     observations.add(
       AssistantObservation(
         'future_time',
-        '有 ${context.futureTimeCount} 条记录的时间晚于当前时间，已排除在按日统计之外$advice。',
+        '${context.futureTimeCount} records are dated after the current time and are excluded from daily counts$advice.',
         ObservationLevel.attention,
       ),
     );
   }
 
   if (context.invalidEventCount > 0) {
-    observations.add(AssistantObservation(
-      'invalid_events',
-      '近 $windowDays 天有 ${context.invalidEventCount} 条疑似无效事件，'
-          '可在历史记录中查看原始信息。',
-      ObservationLevel.attention,
-    ));
+    observations.add(
+      AssistantObservation(
+        'invalid_events',
+        '${context.invalidEventCount} suspected invalid uses were recorded in the last $windowDays days. '
+            'Inspect their original details in History.',
+        ObservationLevel.attention,
+      ),
+    );
   }
 
   final lastSync = context.lastSyncAt?.toLocal();
   if (lastSync != null) {
     final localNow = now.toLocal();
     // 按日历天比较，避免夏令时 23/25 小时造成的取整误差。
-    final staleDays = DateTime(localNow.year, localNow.month, localNow.day)
-        .difference(DateTime(lastSync.year, lastSync.month, lastSync.day))
-        .inDays;
+    final staleDays = DateTime(
+      localNow.year,
+      localNow.month,
+      localNow.day,
+    ).difference(DateTime(lastSync.year, lastSync.month, lastSync.day)).inDays;
     if (staleDays < 0) {
       // 同步时间在未来时差值为负，stale_sync 会静默不触发；而 future_time 只看
       // 记录时间、不看同步时间，所以设备时间被设错时原本不会有任何提示。
-      const advice = '，建议核对设备时间设置后重新同步';
+      const advice = '; check the device clock and sync again';
       observations.add(
         const AssistantObservation(
           'future_sync',
-          '同步时间晚于当前时间，按日统计可能不准确$advice。',
+          'The last sync time is in the future. Daily statistics may be inaccurate$advice.',
           ObservationLevel.attention,
         ),
       );
     } else if (staleDays >= syncStaleAfterDays) {
-      observations.add(AssistantObservation(
-        'stale_sync',
-        '距上次同步已 $staleDays 天，统计可能不含最新记录，'
-            '建议在概览页重新同步设备。',
-        ObservationLevel.attention,
-      ));
+      observations.add(
+        AssistantObservation(
+          'stale_sync',
+          'The last sync was $staleDays days ago. New records may be missing. '
+              'Open Device connection to sync again.',
+          ObservationLevel.attention,
+        ),
+      );
     }
   }
 

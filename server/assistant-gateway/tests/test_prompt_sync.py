@@ -54,7 +54,7 @@ class PromptSyncTests(unittest.TestCase):
 
     def test_the_prompt_still_forbids_diagnosis_and_dosing(self):
         # Guards the edit that would make the two copies agree on something wrong.
-        for phrase in ("不要诊断", "推荐剂量", "不证明实际服药"):
+        for phrase in ("Do not diagnose", "recommend doses", "do not verify ingestion"):
             self.assertIn(phrase, SYSTEM_PROMPT)
 
 

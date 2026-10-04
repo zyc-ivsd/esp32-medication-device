@@ -39,14 +39,13 @@ class AssistantSettings {
     double? speechRate,
     double? speechPitch,
     bool? largeText,
-  }) =>
-      AssistantSettings(
-        sendHistory: sendHistory ?? this.sendHistory,
-        autoSpeak: autoSpeak ?? this.autoSpeak,
-        speechRate: speechRate ?? this.speechRate,
-        speechPitch: speechPitch ?? this.speechPitch,
-        largeText: largeText ?? this.largeText,
-      );
+  }) => AssistantSettings(
+    sendHistory: sendHistory ?? this.sendHistory,
+    autoSpeak: autoSpeak ?? this.autoSpeak,
+    speechRate: speechRate ?? this.speechRate,
+    speechPitch: speechPitch ?? this.speechPitch,
+    largeText: largeText ?? this.largeText,
+  );
 
   Map<String, dynamic> toJson() => {
     'send_history': sendHistory,
@@ -59,8 +58,7 @@ class AssistantSettings {
   /// 解析偏好；任何无法识别的输入都退回默认值，调用方不用区分坏档。
   static AssistantSettings fromJson(Object? data) {
     if (data is! Map) return defaults;
-    bool flag(Object? value, bool fallback) =>
-        value is bool ? value : fallback;
+    bool flag(Object? value, bool fallback) => value is bool ? value : fallback;
     double number(Object? value, double fallback) =>
         value is num ? value.toDouble() : fallback;
     return AssistantSettings(
@@ -81,7 +79,8 @@ abstract class AssistantSettingsStore {
 
 /// 用 `shared_preferences` 保存偏好。失败语义见 [AssistantSettings] 头注：
 /// 全部静默降级，绝不因为读不到偏好而抛异常打断界面。
-class SharedPreferencesAssistantSettingsStore implements AssistantSettingsStore {
+class SharedPreferencesAssistantSettingsStore
+    implements AssistantSettingsStore {
   static const _key = 'assistant_settings';
 
   @override

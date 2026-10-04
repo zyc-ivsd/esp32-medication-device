@@ -39,8 +39,11 @@ class MemoryRecords implements RecordRepository {
   @override
   Future<int?> readSyncCursor(String deviceId) async => null;
   @override
-  Future<void> advanceSyncCursor(String deviceId, int seq,
-      {int? firstSequence}) async {}
+  Future<void> advanceSyncCursor(
+    String deviceId,
+    int seq, {
+    int? firstSequence,
+  }) async {}
   @override
   Future<void> markSyncCompleted(DateTime instant) async {}
   @override
@@ -74,11 +77,11 @@ void main() {
     expect(controller.summary!.total, 0);
     expect(find.textContaining('演示数据'), findsNothing);
     expect(find.byType(SegmentedButton<RecordSource>), findsNothing);
-    expect(find.textContaining('请先连接设备并同步'), findsOneWidget);
+    expect(find.textContaining('Connect and sync'), findsOneWidget);
     expect(device.rows, isEmpty);
-    await tester.tap(find.text('历史记录').last);
+    await tester.tap(find.text('History').last);
     await tester.pumpAndSettle();
-    expect(find.text('还没有记录'), findsOneWidget);
+    expect(find.text('No records yet'), findsOneWidget);
     expect(controller.records, isEmpty);
     expect(tester.takeException(), isNull);
   });
@@ -103,14 +106,17 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('历史记录').last);
+      await tester.tap(find.text('History').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('今天'));
+      await tester.tap(find.text('Today'));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(SwitchListTile));
       await tester.pumpAndSettle();
-      expect(find.text('当前显示 2 条 · CSV 导出相同记录'), findsOneWidget);
-      await tester.tap(find.text('导出 CSV'));
+      expect(
+        find.text('Showing 2 records · CSV exports the same selection'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Export CSV'));
       await tester.pumpAndSettle();
       expect(exported, hasLength(2));
       expect(source, RecordSource.device);
@@ -135,32 +141,37 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.widgetWithText(ActionChip, '今天用了几次？'));
+      await tester.tap(find.widgetWithText(ActionChip, 'How many uses today?'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('今天使用 4 次'), findsOneWidget);
-      await tester.tap(find.widgetWithText(ActionChip, '今天用了几次？'));
+      expect(find.textContaining('4 uses today'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ActionChip, 'How many uses today?'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('今天使用 5 次'), findsOneWidget);
+      expect(find.textContaining('5 uses today'), findsOneWidget);
       expect(loads, 2);
     },
   );
 
-  testWidgets('read errors offer retry and hide stale statistics',
-      (tester) async {
+  testWidgets('read errors offer retry and hide stale statistics', (
+    tester,
+  ) async {
     device.failRead = true;
     await tester.pumpWidget(MedicationDeviceApp(controller: controller));
     await tester.pumpAndSettle();
-    expect(find.text('暂时无法读取本地记录，请重试。'), findsOneWidget);
+    expect(
+      find.text('Cannot read local records. Please try again.'),
+      findsOneWidget,
+    );
     expect(controller.summary, isNull);
     device.failRead = false;
-    await tester.tap(find.text('重试'));
+    await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(controller.summary!.total, 0);
-    expect(find.text('让每次记录更清楚'), findsOneWidget);
+    expect(find.text('Your medication diary'), findsOneWidget);
   });
 
-  testWidgets('compact and large-text layouts keep core controls usable',
-      (tester) async {
+  testWidgets('compact and large-text layouts keep core controls usable', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(320, 740);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -170,13 +181,17 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: const TextScaler.linear(1.6)),
-            child: child!),
-        home: HomePage(controller: controller)));
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.6)),
+          child: child!,
+        ),
+        home: HomePage(controller: controller),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    await tester.tap(find.text('历史记录').last);
+    await tester.tap(find.text('History').last);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });

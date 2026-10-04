@@ -28,7 +28,6 @@ class _ConnectedAppState extends State<_ConnectedApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_ble.initializeAutoScan());
   }
 
   @override
@@ -49,27 +48,43 @@ class _ConnectedAppState extends State<_ConnectedApp>
 
   @override
   Widget build(BuildContext context) => MedicationDeviceApp(
+    onRepositoryReady: (repository) async {
+      await _ble.attachRecordSink(
+        save: repository.saveDeviceTimestamp,
+        markSyncCompleted: repository.markSyncCompleted,
+      );
+      unawaited(_ble.initializeAutoScan());
+    },
     connectionBuilder: (context, deviceRepository) =>
         BleConnectionCard(service: _ble),
   );
 }
 
 class MedicationDeviceApp extends StatelessWidget {
-  const MedicationDeviceApp({super.key, this.controller, this.connectionBuilder});
+  const MedicationDeviceApp({
+    super.key,
+    this.controller,
+    this.connectionBuilder,
+    this.onRepositoryReady,
+  });
   final RecordController? controller;
   final DeviceConnectionBuilder? connectionBuilder;
+  final Future<void> Function(SqliteRecordRepository)? onRepositoryReady;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: '用药装置 · 记录',
+    title: 'parcel · Medication diary',
     debugShowCheckedModeBanner: false,
-    locale: const Locale('zh', 'CN'),
-    supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
+    locale: const Locale('en'),
+    supportedLocales: const [Locale('en')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
     // 只有一套主题（浅色）：外观切换已移除，见 theme/app_theme.dart。
     theme: buildAppTheme(),
     home: controller == null
-        ? _DatabaseLoader(connectionBuilder: connectionBuilder)
+        ? _DatabaseLoader(
+            connectionBuilder: connectionBuilder,
+            onRepositoryReady: onRepositoryReady,
+          )
         : HomePage(
             controller: controller!,
             connectionBuilder: connectionBuilder,
@@ -78,8 +93,9 @@ class MedicationDeviceApp extends StatelessWidget {
 }
 
 class _DatabaseLoader extends StatefulWidget {
-  const _DatabaseLoader({this.connectionBuilder});
+  const _DatabaseLoader({this.connectionBuilder, this.onRepositoryReady});
   final DeviceConnectionBuilder? connectionBuilder;
+  final Future<void> Function(SqliteRecordRepository)? onRepositoryReady;
   @override
   State<_DatabaseLoader> createState() => _DatabaseLoaderState();
 }
@@ -98,6 +114,7 @@ class _DatabaseLoaderState extends State<_DatabaseLoader> {
     SqliteRecordRepository? device;
     try {
       device = await SqliteRecordRepository.open(source: RecordSource.device);
+      await widget.onRepositoryReady?.call(device);
       if (!mounted) {
         await device.close();
         return;
@@ -137,9 +154,14 @@ class _DatabaseLoaderState extends State<_DatabaseLoader> {
                   children: [
                     const Icon(Icons.storage_outlined, size: 40),
                     const SizedBox(height: 16),
-                    const Text('本地记录暂时无法打开，请检查可用存储空间后重试。'),
+                    const Text(
+                      'Cannot open local records. Check available storage and try again.',
+                    ),
                     const SizedBox(height: 16),
-                    FilledButton(onPressed: _open, child: const Text('重新打开')),
+                    FilledButton(
+                      onPressed: _open,
+                      child: const Text('Try again'),
+                    ),
                   ],
                 )
               : const CircularProgressIndicator(),

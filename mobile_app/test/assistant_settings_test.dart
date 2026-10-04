@@ -28,10 +28,14 @@ void main() {
   test('坏档、缺字段或非数值一律退回默认值，不抛异常', () {
     expect(AssistantSettings.fromJson(null).sendHistory, isFalse);
     expect(AssistantSettings.fromJson('不是对象').autoSpeak, isFalse);
-    expect(AssistantSettings.fromJson(const {'send_history': 'yes'}).sendHistory,
-        isFalse);
-    expect(AssistantSettings.fromJson(const {'speech_rate': '快'}).speechRate,
-        0.5);
+    expect(
+      AssistantSettings.fromJson(const {'send_history': 'yes'}).sendHistory,
+      isFalse,
+    );
+    expect(
+      AssistantSettings.fromJson(const {'speech_rate': 'Fast'}).speechRate,
+      0.5,
+    );
     expect(
       AssistantSettings.fromJson(const {'speech_pitch': 99}).speechPitch,
       99,

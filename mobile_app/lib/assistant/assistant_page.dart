@@ -20,8 +20,8 @@ import 'models/chat_message.dart';
 ///
 /// 在线用靛蓝而不是另一档青绿：这两个颜色在一屏里会同时出现（分段控件、
 /// 来源小标、发送按钮），色相差距太小就等于没区分。
-const _localAccent = Color(0xff147d79);
-const _onlineAccent = Color(0xff4f6bd9);
+const _localAccent = Color(0xff75518c);
+const _onlineAccent = Color(0xff9b5832);
 
 class AssistantPage extends StatefulWidget {
   const AssistantPage({
@@ -188,9 +188,11 @@ class _AssistantPageState extends State<AssistantPage> {
       // 引擎缺失/初始化失败是设备差异，不是错误路径里要回显的东西；
       // 只给一句固定提示，不让用户以为按了没反应。
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('此设备暂不支持朗读。')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Read aloud is unavailable on this device.'),
+          ),
+        );
       }
     } finally {
       // 读完、出错或被停：收回「停止」。期间若又开了新的一段（代号变了），
@@ -242,9 +244,9 @@ class _AssistantPageState extends State<AssistantPage> {
   ChatMessage _welcomeMessage() => ChatMessage(
     role: ChatRole.assistant,
     text:
-        '你好，我可以解释本地设备记录的统计。'
-        '${_service.isRemote ? '当前使用在线助手。' : '当前使用本地规则回答，不联网。'}'
-        '记录的动作次数不代表确认服药。',
+        'Hello! I can help you understand your saved medication records. '
+        '${_service.isRemote ? 'Online assistant is enabled. ' : 'Local uses offline rules. '}'
+        'A logged use does not verify ingestion.',
     createdAt: DateTime.now(),
   );
 
@@ -254,9 +256,11 @@ class _AssistantPageState extends State<AssistantPage> {
     if (!mounted || history.isEmpty) return;
     // 读盘期间用户可能已经提问了，那种情况下不能把刚发的消息覆盖掉。
     if (_messages.length > 1) return;
-    setState(() => _messages
-      ..clear()
-      ..addAll(history));
+    setState(
+      () => _messages
+        ..clear()
+        ..addAll(history),
+    );
     _scrollToBottom();
   }
 
@@ -423,13 +427,13 @@ class _AssistantPageState extends State<AssistantPage> {
     final raw = buffer.toString().trim();
     if (raw.isEmpty) {
       if (interruption != null) throw interruption;
-      throw const AssistantException('模型服务没有返回文字。');
+      throw const AssistantException('The model service returned no text.');
     }
     final incomplete = interruption != null || !result.completion.isComplete;
     final incompleteReason = interruption == null
         ? result.completion.incompleteReason
-        : '${interruption is AssistantException ? interruption.message : '模型连接中断，请重试。'}'
-              ' 已保留收到的内容，回答未完成。';
+        : '${interruption is AssistantException ? interruption.message : 'Model connection interrupted. Please retry.'}'
+              ' The received text has been saved, but the answer is incomplete.';
     final message = _service.finalizeRemote(
       raw,
       latestContext,
@@ -459,7 +463,7 @@ class _AssistantPageState extends State<AssistantPage> {
         role: ChatRole.assistant,
         text: error is AssistantException
             ? error.message
-            : '暂时无法读取记录或获取回答，请稍后重试。',
+            : 'Records or the answer could not be loaded. Please try again.',
         createdAt: DateTime.now(),
         source: wasRemote ? ChatSource.online : ChatSource.local,
         isError: true,
@@ -473,7 +477,7 @@ class _AssistantPageState extends State<AssistantPage> {
         _service = AssistantService();
         _onlineProfileId = null;
       });
-      _appendNotice('已切回本地摘要，不联网。');
+      _appendNotice('Switched to Local. No network connection is used.');
       return;
     }
     // 已经配置过就直接用选中的那条，不再弹窗——用户要的是「点一下就切」。
@@ -485,7 +489,10 @@ class _AssistantPageState extends State<AssistantPage> {
     }
     AssistantService service;
     try {
-      service = AssistantService(provider: profile.toProvider(), isRemote: true);
+      service = AssistantService(
+        provider: profile.toProvider(),
+        isRemote: true,
+      );
     } catch (_) {
       // 地址不完整、Key 被清掉：去控制台让用户补全，而不是在这里报错。
       await _openConsole();
@@ -500,9 +507,9 @@ class _AssistantPageState extends State<AssistantPage> {
 
   /// 切到在线的分隔提示。多轮开关开启时，文案要如实说明会把本轮问答带出去。
   String get _onlineNotice => _sendHistory
-      ? '已启用在线助手。每次提问发送本次问题、当前统计摘要和本轮更早的问答；'
-            '原始记录与设备标识不上传。'
-      : '已启用在线助手。每次提问只发送本次问题和当前统计摘要；历史对话不上传。';
+      ? 'Online enabled. Each question sends your question, the current summary and earlier turns from this session. '
+            'Raw records and device identifiers are not uploaded.'
+      : 'Online enabled. Each question sends your question and the current summary. Chat history is not uploaded.';
 
   Future<void> _openConsole() async {
     if (_sending) return;
@@ -542,18 +549,25 @@ class _AssistantPageState extends State<AssistantPage> {
         _service = AssistantService();
         _onlineProfileId = null;
       });
-      _appendNotice('已删除当前使用的模型配置，已切回本地，不再调用该服务。');
+      _appendNotice(
+        'The selected model configuration was deleted. Switched to Local.',
+      );
       return;
     }
     AssistantService service;
     try {
-      service = AssistantService(provider: profile.toProvider(), isRemote: true);
+      service = AssistantService(
+        provider: profile.toProvider(),
+        isRemote: true,
+      );
     } catch (_) {
       setState(() {
         _service = AssistantService();
         _onlineProfileId = null;
       });
-      _appendNotice('当前模型配置不完整，已切回本地。');
+      _appendNotice(
+        'The model configuration is incomplete. Switched to Local.',
+      );
       return;
     }
     setState(() => _service = service);
@@ -591,7 +605,7 @@ class _AssistantPageState extends State<AssistantPage> {
       _streaming = false;
       _streamText = '';
     });
-    _appendNotice('已取消本次问答。');
+    _appendNotice('Question cancelled.');
   }
 
   /// 清空本机聊天记录。
@@ -602,16 +616,18 @@ class _AssistantPageState extends State<AssistantPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('清空对话？'),
-        content: const Text('会删除本机保存的聊天记录。用药记录本身不受影响。'),
+        title: const Text('Clear chat?'),
+        content: const Text(
+          'Saved chat messages will be deleted from this phone. Medication records are kept.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('清空'),
+            child: const Text('Clear'),
           ),
         ],
       ),
@@ -638,22 +654,22 @@ class _AssistantPageState extends State<AssistantPage> {
   }
 
   List<PopupMenuEntry<String>> _menuItems() => [
-    const PopupMenuItem(value: 'clear', child: Text('清空对话')),
+    const PopupMenuItem(value: 'clear', child: Text('Clear chat')),
     CheckedPopupMenuItem(
       value: 'history',
       checked: _sendHistory,
-      child: const Text('带上本轮对话'),
+      child: const Text('Include this session'),
     ),
-    const PopupMenuItem(value: 'speech', child: Text('朗读设置')),
+    const PopupMenuItem(value: 'speech', child: Text('Read-aloud settings')),
     CheckedPopupMenuItem(
       value: 'largeText',
       checked: _largeText,
-      child: const Text('大字模式'),
+      child: const Text('Larger text'),
     ),
   ];
 
   Widget _buildOverflowMenu() => PopupMenuButton<String>(
-    tooltip: '更多',
+    tooltip: 'More',
     onSelected: _onMenuSelected,
     itemBuilder: (_) => _menuItems(),
   );
@@ -695,21 +711,22 @@ class _AssistantPageState extends State<AssistantPage> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('朗读设置'),
+          title: const Text('Read-aloud settings'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('回答后自动朗读'),
-                subtitle: const Text('新问题会打断上一段朗读'),
+                title: const Text('Read new answers automatically'),
+                subtitle: const Text(
+                  'A new question stops the previous reading',
+                ),
                 value: autoSpeak,
-                onChanged: (value) =>
-                    setDialogState(() => autoSpeak = value),
+                onChanged: (value) => setDialogState(() => autoSpeak = value),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text('语速 · ${_rateLabel(rate)}'),
+                title: Text('Speed · ${_rateLabel(rate)}'),
                 subtitle: Slider(
                   value: rate,
                   min: 0,
@@ -720,7 +737,7 @@ class _AssistantPageState extends State<AssistantPage> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text('音调 · ${_pitchLabel(pitch)}'),
+                title: Text('Pitch · ${_pitchLabel(pitch)}'),
                 subtitle: Slider(
                   value: pitch,
                   min: 0.5,
@@ -734,11 +751,11 @@ class _AssistantPageState extends State<AssistantPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('取消'),
+              child: const Text('Cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('保存'),
+              child: const Text('Save'),
             ),
           ],
         ),
@@ -754,15 +771,15 @@ class _AssistantPageState extends State<AssistantPage> {
   }
 
   String _rateLabel(double rate) => switch (rate) {
-    <= 0.25 => '慢',
-    >= 0.75 => '快',
-    _ => '正常',
+    <= 0.25 => 'Slow',
+    >= 0.75 => 'Fast',
+    _ => 'Normal',
   };
 
   String _pitchLabel(double pitch) {
-    if (pitch < 0.85) return '低';
-    if (pitch > 1.15) return '高';
-    return '正常';
+    if (pitch < 0.85) return 'Low';
+    if (pitch > 1.15) return 'High';
+    return 'Normal';
   }
 
   void _scrollToBottom() {
@@ -789,7 +806,7 @@ class _AssistantPageState extends State<AssistantPage> {
     final accent = _service.isRemote ? _onlineAccent : _localAccent;
     final page = Scaffold(
       appBar: AppBar(
-        title: const Text('记录助手'),
+        title: const Text('Record assistant'),
         actions: [
           IconButton(
             onPressed: () => setState(() {
@@ -797,12 +814,12 @@ class _AssistantPageState extends State<AssistantPage> {
               _searchQuery = '';
             }),
             icon: Icon(_searching ? Icons.search_off : Icons.search),
-            tooltip: '搜索对话',
+            tooltip: 'Search chat',
           ),
           IconButton(
             onPressed: _sending ? null : _openConsole,
             icon: Icon(Icons.settings_outlined, color: accent),
-            tooltip: '管理 API',
+            tooltip: 'Manage APIs',
           ),
           _buildOverflowMenu(),
         ],
@@ -848,9 +865,9 @@ class _AssistantPageState extends State<AssistantPage> {
     // clamp 返回 num，TextScaler.linear 要 double，这里显式转回 double。
     final largeScale = (systemScale * 1.25).clamp(1.0, 2.2).toDouble();
     return MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        textScaler: TextScaler.linear(largeScale),
-      ),
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: TextScaler.linear(largeScale)),
       child: page,
     );
   }
@@ -872,12 +889,12 @@ class _AssistantPageState extends State<AssistantPage> {
               segments: const [
                 ButtonSegment(
                   value: false,
-                  label: Text('本地'),
+                  label: Text('Local'),
                   icon: Icon(Icons.offline_bolt_outlined, size: 16),
                 ),
                 ButtonSegment(
                   value: true,
-                  label: Text('在线'),
+                  label: Text('Online'),
                   icon: Icon(Icons.cloud_outlined, size: 16),
                 ),
               ],
@@ -901,10 +918,7 @@ class _AssistantPageState extends State<AssistantPage> {
                   : (selection) => _changeMode(selection.single),
             ),
           ),
-          if (remote) ...[
-            const SizedBox(height: 8),
-            _buildPrivacyBanner(),
-          ],
+          if (remote) ...[const SizedBox(height: 8), _buildPrivacyBanner()],
         ],
       ),
     );
@@ -931,10 +945,10 @@ class _AssistantPageState extends State<AssistantPage> {
           Expanded(
             child: Text(
               _sendHistory
-                  ? '每次提问把「本次问题 + 上方摘要 + 本轮更早的问答」发给你的模型；'
-                        '原始记录与设备标识不上传。'
-                  : '每次提问只把「本次问题 + 上方摘要」发给在线模型，'
-                        '不发送原始记录、设备标识或历史对话。',
+                  ? 'Send your question, the summary above and earlier turns from this session to your model. '
+                        'Raw records and device identifiers are not uploaded.'
+                  : 'Send your question and the summary above to the online model. '
+                        'Raw records, device identifiers and chat history are not sent.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -963,14 +977,19 @@ class _AssistantPageState extends State<AssistantPage> {
                 // 三列都得能被压窄。Row 里没有弹性项时，每一项都按文字固有宽度占位，
                 // 系统字号放大后「近 7 天疑似无效」这种长标签就会把整行顶出卡片
                 // （实测 1.5 倍字号、375 宽时横向溢出 12 像素）。
-                Flexible(child: _summaryItem('今日', '${data.todayCount} 次')),
                 Flexible(
-                  child: _summaryItem('近 7 天', '${data.last7DaysCount} 次'),
+                  child: _summaryItem('Today', '${data.todayCount} uses'),
                 ),
                 Flexible(
                   child: _summaryItem(
-                    '近 7 天疑似无效',
-                    '${data.invalidEventCount} 条',
+                    'Last 7 days',
+                    '${data.last7DaysCount} uses',
+                  ),
+                ),
+                Flexible(
+                  child: _summaryItem(
+                    'Invalid uses (7 days)',
+                    '${data.invalidEventCount} records',
                   ),
                 ),
               ],
@@ -991,19 +1010,20 @@ class _AssistantPageState extends State<AssistantPage> {
     final (icon, color) = switch (status) {
       SyncStatus.never => (Icons.sync_disabled, const Color(0xffc62828)),
       SyncStatus.stale => (Icons.sync_problem, const Color(0xffc62828)),
-      SyncStatus.fresh => (
-        Icons.check_circle_outline,
-        const Color(0xff2e7d32),
-      ),
+      SyncStatus.fresh => (Icons.check_circle_outline, const Color(0xff2e7d32)),
     };
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 4),
-        Text(
-          syncStatusLabel(status),
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+        Flexible(
+          child: Text(
+            syncStatusLabel(status),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: color),
+          ),
         ),
       ],
     );
@@ -1026,7 +1046,7 @@ class _AssistantPageState extends State<AssistantPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '近 7 天逐日使用动作（左最早，右今天）',
+          'Daily uses · last 7 days (oldest to today)',
           style: Theme.of(context).textTheme.labelMedium,
         ),
         const SizedBox(height: 8),
@@ -1038,8 +1058,7 @@ class _AssistantPageState extends State<AssistantPage> {
               for (var index = 0; index < data.dailyCounts.length; index++)
                 Expanded(
                   child: Semantics(
-                    label:
-                        '第 ${index + 1} 天，${data.dailyCounts[index]} 次使用动作',
+                    label: 'Day ${index + 1}, ${data.dailyCounts[index]} uses',
                     excludeSemantics: true,
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
@@ -1060,7 +1079,10 @@ class _AssistantPageState extends State<AssistantPage> {
                             width: 14,
                             height: math.max(
                               3,
-                              data.dailyCounts[index] / max * maxBarHeight * scale,
+                              data.dailyCounts[index] /
+                                  max *
+                                  maxBarHeight *
+                                  scale,
                             ),
                             decoration: BoxDecoration(
                               color: _barColor(
@@ -1082,8 +1104,8 @@ class _AssistantPageState extends State<AssistantPage> {
         ),
         const SizedBox(height: 6),
         Text(
-          '共 ${data.totalCount} 条本地记录'
-          '${data.lastSyncAt == null ? '' : ' · 最后同步 ${data.lastSyncAt!.toLocal()}'}',
+          '${data.totalCount} saved records'
+          '${data.lastSyncAt == null ? '' : ' · Last sync ${data.lastSyncAt!.toLocal()}'}',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -1104,7 +1126,9 @@ class _AssistantPageState extends State<AssistantPage> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text('${isToday ? '今天' : '第 ${index + 1} 天'} · $count 次使用动作'),
+          content: Text(
+            '${isToday ? 'Today' : 'Day ${index + 1}'} · $count uses',
+          ),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -1135,16 +1159,16 @@ class _AssistantPageState extends State<AssistantPage> {
   /// 不再按 `Brightness` 分深浅两套。
   Color _assistantBubbleColor(ChatSource? source) {
     return switch (source) {
-      ChatSource.knowledge => const Color(0xfffdf3dc),
-      ChatSource.online => const Color(0xffe6eafb),
-      _ => const Color(0xffe0efed),
+      ChatSource.knowledge => const Color(0xffffeddc),
+      ChatSource.online => const Color(0xffffe1c9),
+      _ => const Color(0xffe8daf3),
     };
   }
 
   /// 来源小标的颜色。同样只有一套（浅色）配色。
   Color _sourceAccent(ChatSource source) {
     return switch (source) {
-      ChatSource.knowledge => const Color(0xff8a6d1f),
+      ChatSource.knowledge => _onlineAccent,
       ChatSource.online => _onlineAccent,
       ChatSource.local => _localAccent,
     };
@@ -1157,12 +1181,15 @@ class _AssistantPageState extends State<AssistantPage> {
   ({String label, IconData icon}) _sourceBadge(ChatSource source) =>
       switch (source) {
         ChatSource.local => (
-          label: '本地回答',
+          label: 'Local answer',
           icon: Icons.offline_bolt_outlined,
         ),
-        ChatSource.online => (label: '在线回答', icon: Icons.cloud_outlined),
+        ChatSource.online => (
+          label: 'Online answer',
+          icon: Icons.cloud_outlined,
+        ),
         ChatSource.knowledge => (
-          label: 'AI 知识',
+          label: 'AI knowledge',
           icon: Icons.lightbulb_outline,
         ),
       };
@@ -1175,7 +1202,8 @@ class _AssistantPageState extends State<AssistantPage> {
       alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Semantics(
         // 读屏时需要听出这是谁说的话，否则提问和回答会混在一起。
-        label: '${message.isUser ? '我的提问' : '助手回答'}：${message.text}',
+        label:
+            '${message.isUser ? 'Your question' : 'Assistant answer'}: ${message.text}',
         excludeSemantics: true,
         child: Container(
           constraints: const BoxConstraints(maxWidth: 330),
@@ -1197,14 +1225,17 @@ class _AssistantPageState extends State<AssistantPage> {
                 const SizedBox(height: 4),
               ],
               // 助手回答带强调：声明浅色、个人数据蓝色、问题红色、正文黑色。
-              if (message.isUser) Text(message.text) else _buildAnswerText(message),
+              if (message.isUser)
+                Text(message.text)
+              else
+                _buildAnswerText(message),
               // 助手回答可以朗读，也能给赞/踩反馈。
               if (!message.isUser) ...[
                 const SizedBox(height: 2),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       _buildSpeakButton(message),
                       _buildFeedback(message),
@@ -1227,10 +1258,12 @@ class _AssistantPageState extends State<AssistantPage> {
       children: [
         Icon(badge.icon, size: 12, color: accent),
         const SizedBox(width: 4),
-        Text(
-          badge.label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: accent,
+        Flexible(
+          child: Text(
+            badge.label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: accent),
           ),
         ),
       ],
@@ -1249,7 +1282,7 @@ class _AssistantPageState extends State<AssistantPage> {
         speaking ? Icons.stop_circle_outlined : Icons.volume_up_outlined,
         size: 16,
       ),
-      label: Text(speaking ? '停止' : '朗读'),
+      label: Text(speaking ? 'Stop' : 'Read aloud'),
       style: TextButton.styleFrom(
         visualDensity: VisualDensity.compact,
         padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1273,7 +1306,7 @@ class _AssistantPageState extends State<AssistantPage> {
             size: 16,
           ),
           visualDensity: VisualDensity.compact,
-          tooltip: '有帮助',
+          tooltip: 'Helpful',
         ),
         IconButton(
           onPressed: () => _rate(message, ChatFeedback.down),
@@ -1284,7 +1317,7 @@ class _AssistantPageState extends State<AssistantPage> {
             size: 16,
           ),
           visualDensity: VisualDensity.compact,
-          tooltip: '没帮助',
+          tooltip: 'Not helpful',
         ),
       ],
     );
@@ -1310,7 +1343,9 @@ class _AssistantPageState extends State<AssistantPage> {
       // 再拿 message 去 indexOf 会得到 -1（这里踩过，表现为「踩了没反应」）。
       final question = _questionBefore(index);
       if (question == null) return;
-      _appendNotice('已记录这条回答没帮助（不会发送给模型）。下面用本地规则重新解释：');
+      _appendNotice(
+        'Feedback saved on this phone. Here is an explanation using local rules:',
+      );
       final local = await AssistantService().ask(
         question: question,
         context: _context,
@@ -1376,7 +1411,10 @@ class _AssistantPageState extends State<AssistantPage> {
           ),
         );
         children.add(
-          TextSpan(text: span.text.substring(cut), style: _unreadStyle(span.kind)),
+          TextSpan(
+            text: span.text.substring(cut),
+            style: _unreadStyle(span.kind),
+          ),
         );
       }
     }
@@ -1396,7 +1434,7 @@ class _AssistantPageState extends State<AssistantPage> {
         fontStyle: FontStyle.italic,
       ),
       AnswerSpanKind.data => (base ?? const TextStyle()).copyWith(
-        color: const Color(0xff1565c0),
+        color: _localAccent,
         fontWeight: FontWeight.w600,
       ),
       AnswerSpanKind.alert => (base ?? const TextStyle()).copyWith(
@@ -1450,7 +1488,13 @@ class _AssistantPageState extends State<AssistantPage> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
               const SizedBox(width: 10),
-              Text(_service.isRemote ? '正在询问在线助手…' : '正在读取本地统计…'),
+              Flexible(
+                child: Text(
+                  _service.isRemote
+                      ? 'Asking the online assistant…'
+                      : 'Reading local statistics…',
+                ),
+              ),
             ],
           ),
           TextButton(
@@ -1460,7 +1504,7 @@ class _AssistantPageState extends State<AssistantPage> {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text('取消'),
+            child: const Text('Cancel'),
           ),
         ],
       ),
@@ -1493,10 +1537,7 @@ class _AssistantPageState extends State<AssistantPage> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
               const SizedBox(width: 6),
-              Text(
-                '正在输出',
-                style: Theme.of(context).textTheme.labelSmall,
-              ),
+              Text('Generating', style: Theme.of(context).textTheme.labelSmall),
             ],
           ),
           TextButton(
@@ -1506,7 +1547,7 @@ class _AssistantPageState extends State<AssistantPage> {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text('停止'),
+            child: const Text('Stop'),
           ),
         ],
       ),
@@ -1523,7 +1564,7 @@ class _AssistantPageState extends State<AssistantPage> {
             child: TextField(
               autofocus: true,
               decoration: const InputDecoration(
-                hintText: '搜索对话',
+                hintText: 'Search chat',
                 prefixIcon: Icon(Icons.search),
                 isDense: true,
                 border: OutlineInputBorder(),
@@ -1537,7 +1578,7 @@ class _AssistantPageState extends State<AssistantPage> {
               _searchQuery = '';
             }),
             icon: const Icon(Icons.close),
-            tooltip: '关闭搜索',
+            tooltip: 'Close search',
           ),
         ],
       ),
@@ -1564,7 +1605,10 @@ class _AssistantPageState extends State<AssistantPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('接着问', style: Theme.of(context).textTheme.labelSmall),
+          Text(
+            'Ask a follow-up',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
@@ -1599,7 +1643,7 @@ class _AssistantPageState extends State<AssistantPage> {
         alignment: Alignment.centerLeft,
         child: ActionChip(
           avatar: const Icon(Icons.refresh, size: 16),
-          label: const Text('上次回答失败，点这里重试'),
+          label: const Text('The last request failed. Tap to try again.'),
           onPressed: () => _send(question),
         ),
       ),
@@ -1608,22 +1652,24 @@ class _AssistantPageState extends State<AssistantPage> {
 
   /// 快捷问题。每个都能在本地模式下拿到确定答案，不靠在线模型。
   static const _quickQuestions = [
-    '今天用了几次？',
-    '最近有异常吗？',
-    '查看最近一周',
-    '有什么建议？',
-    '数据是最新的吗？',
-    '设备时间对吗？',
-    '一共有多少条记录？',
-    '空白那几天怎么看？',
-    '能问什么？',
+    'How many uses today?',
+    'Any invalid uses recently?',
+    'Show the last week',
+    'What needs attention?',
+    'Is my data up to date?',
+    'Is the device clock correct?',
+    'How many records are saved?',
+    'What do days without records mean?',
+    'What can I ask?',
   ];
 
   Widget _buildQuickQuestions() => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
     // 不给固定高度：系统字号放大时，固定高度会把 chip 里的文字挤爆。
     child: Row(
-      children: [for (final question in _quickQuestions) _quickQuestion(question)],
+      children: [
+        for (final question in _quickQuestions) _quickQuestion(question),
+      ],
     ),
   );
 
@@ -1653,7 +1699,9 @@ class _AssistantPageState extends State<AssistantPage> {
               decoration: InputDecoration(
                 // 在线模式可以问记录以外的问题，提示语跟着说清楚；本地模式答不了，
                 // 就不要许这个愿。
-                hintText: remote ? '问记录，也可以问健康常识' : '输入关于记录的问题',
+                hintText: remote
+                    ? 'Ask about records or general health information'
+                    : 'Ask about your records',
                 border: const OutlineInputBorder(),
               ),
             ),
@@ -1672,7 +1720,7 @@ class _AssistantPageState extends State<AssistantPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.send),
-            tooltip: '发送',
+            tooltip: 'Send',
           ),
         ],
       ),

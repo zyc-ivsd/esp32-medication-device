@@ -11,9 +11,9 @@ class AssistantService {
     AssistantProvider? provider,
     this.isRemote = false,
     DateTime? now,
-  })  : _provider = provider ?? MockAssistantProvider(),
-        // 命名参数不能叫 `_now`，只能用公开名 `now` 显式赋值；同 ble_service.dart。
-        _now = now; // ignore: prefer_initializing_formals
+  }) : _provider = provider ?? MockAssistantProvider(),
+       // 命名参数不能叫 `_now`，只能用公开名 `now` 显式赋值；同 ble_service.dart。
+       _now = now; // ignore: prefer_initializing_formals
 
   final AssistantProvider _provider;
   final bool isRemote;
@@ -29,7 +29,9 @@ class AssistantService {
     required AssistantContext context,
   }) async {
     // 只有在线模式检索设备知识库：本地规则不联网、也不看这份语料。
-    final chunks = isRemote ? retrieveKnowledge(question) : const <KnowledgeChunk>[];
+    final chunks = isRemote
+        ? retrieveKnowledge(question)
+        : const <KnowledgeChunk>[];
     final references = [for (final chunk in chunks) chunk.toReference()];
     final referenceNumbers = _referenceNumbers(chunks);
 
@@ -60,7 +62,8 @@ class AssistantService {
     Set<int> referenceNumbers,
     Stream<String> stream,
     StreamCompletion completion,
-  }) streamAsk({
+  })
+  streamAsk({
     required String question,
     required AssistantContext context,
     List<ChatMessage> history = const [],
@@ -91,7 +94,10 @@ class AssistantService {
   /// 来源标记在落盘前已拆掉，这里再拆一次是防老存档里还带着标记。
   /// **失败气泡要滤掉**：那是 App 写的提示、不是模型说过的话，回灌过去会让模型
   /// 把自己上一条「模型服务响应超时」当成已经答过的内容。
-  List<ChatTurn> _toTurns(List<ChatMessage> history, {required String question}) {
+  List<ChatTurn> _toTurns(
+    List<ChatMessage> history, {
+    required String question,
+  }) {
     final turns = <ChatTurn>[];
     for (final message in history) {
       if (message.isUser) {
@@ -142,12 +148,9 @@ class AssistantService {
     return ChatMessage(
       role: ChatRole.assistant,
       // 只有用到记录的联网回答需要回验。
-      text: verifyRemoteAnswer(
-        parsed.body,
-        context,
-        now: _now,
-        extra: extra,
-      ) + tail,
+      text:
+          verifyRemoteAnswer(parsed.body, context, now: _now, extra: extra) +
+          tail,
       createdAt: DateTime.now(),
       source: ChatSource.online,
       isIncomplete: incomplete,

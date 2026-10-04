@@ -37,9 +37,9 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        await tester.scrollUntilVisible(find.text('扫描设备'), 150);
+        await tester.scrollUntilVisible(find.text('Scan devices'), 150);
         final bounds = tester.getRect(
-          find.widgetWithText(FilledButton, '扫描设备'),
+          find.widgetWithText(FilledButton, 'Scan devices'),
         );
         expect(bounds.left, greaterThanOrEqualTo(44));
         expect(bounds.right, lessThanOrEqualTo(size.width - 44));
@@ -77,9 +77,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('历史记录').last);
+      await tester.tap(find.text('History').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('导出 CSV'));
+      await tester.tap(find.text('Export CSV'));
       await tester.pumpAndSettle();
       expect(anchor, isNotNull);
       expect(anchor!.width, greaterThan(0));
