@@ -673,7 +673,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   }.entries)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: Text('${entry.key}：${entry.value}'),
+                      child: Text('${entry.key}: ${entry.value}'),
                     ),
                 ],
               ),

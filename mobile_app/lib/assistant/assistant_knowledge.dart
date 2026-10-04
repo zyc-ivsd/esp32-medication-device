@@ -40,7 +40,7 @@ class KnowledgeChunk {
   final List<String> keywords;
 
   /// 拼成给模型看的「参考资料」一行。
-  String toReference() => '$title：$body';
+  String toReference() => '$title: $body';
 }
 
 /// 全量语料。顺序无关，检索按得分排序。
