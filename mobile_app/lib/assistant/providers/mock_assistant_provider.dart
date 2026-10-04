@@ -82,7 +82,7 @@ class MockAssistantProvider implements AssistantProvider {
       return '请先输入问题。';
     }
 
-    final sourceText = context.isDemo ? '演示数据' : '设备记录';
+    const sourceText = '设备记录';
     final observations = evaluateObservations(
       context,
       now: now ?? DateTime.now(),
@@ -123,11 +123,10 @@ class MockAssistantProvider implements AssistantProvider {
     }
 
     if (_matchesAny(normalizedQuestion, const {'最新', '同步', '多久'})) {
-      // `never_synced` 只在设备数据下产生；演示数据没有设备，自己说清楚就好。
       final base =
           _firstNote(observations, 'never_synced') ??
           (context.lastSyncAt == null
-              ? '演示数据没有设备同步时间。'
+              ? '尚未记录设备同步时间，无法判断数据新旧。'
               : '最后一次同步是 ${context.lastSyncAt!.toLocal()}，'
                     '之后的新记录可能还没同步到手机。');
       return '$base${_notesFor(observations, const {'stale_sync', 'future_sync'})}'
@@ -135,8 +134,7 @@ class MockAssistantProvider implements AssistantProvider {
     }
 
     if (_matchesAny(normalizedQuestion, const {'时间', '校时', '日期'})) {
-      // 演示数据没有设备可维护，所以不给校时建议（同规则层的取舍）。
-      final advice = context.isDemo ? '' : '如果设备时间不对，可以在设备上校时后重新同步。';
+      const advice = '如果设备时间不对，可以在设备上校时后重新同步。';
       return '$sourceText里有 ${context.unknownTimeCount} 条时间未知、'
           '${context.futureTimeCount} 条时间晚于当前时间的记录，这些不计入按日统计。'
           '${_notesFor(observations, const {'unknown_time', 'future_time'})}'
@@ -180,19 +178,20 @@ class MockAssistantProvider implements AssistantProvider {
           '设备动作次数只代表装置被使用，不能确认实际服药。';
     }
 
-    if (_matchesAny(normalizedQuestion, const {'导入'})) {
-      return '概览页有「导入演示数据」入口：没有硬件时生成一段示例记录用于体验功能；'
-          '连接硬件同步后会用正式记录替换。演示数据单独存放，清除演示数据不影响设备数据。';
+    if (_matchesAny(normalizedQuestion, const {'数据来源', '记录来源', '数据从哪', '导入'})) {
+      return '记录来自设备同步，请在概览页打开设备连接页进行蓝牙连接和同步。'
+          '连接页可查看收到的原始时间文本；完整事件记录用于概览、历史、CSV 和助手统计。';
     }
 
-    if (_matchesAny(normalizedQuestion, const {'演示', '示例', '假数据', '测试数据', '模拟数据'})) {
-      return context.isDemo
-          ? '当前看到的是演示数据：导入时生成的一段示例记录，用于没有硬件时体验功能，'
-                '不代表真实用药；连接硬件同步后会换成正式记录。'
-          : '当前数据来自设备同步，不是演示数据。';
-    }
-
-    if (_matchesAny(normalizedQuestion, const {'导出', 'CSV', 'csv', 'Excel', 'excel', '表格', '分享'})) {
+    if (_matchesAny(normalizedQuestion, const {
+      '导出',
+      'CSV',
+      'csv',
+      'Excel',
+      'excel',
+      '表格',
+      '分享',
+    })) {
       return '可以在历史记录页把当前筛选结果导出成 CSV 文件；'
           '导出的是已保存的正式记录，不含原型时间文本，也不含任何凭据。';
     }
@@ -245,7 +244,7 @@ class MockAssistantProvider implements AssistantProvider {
     })) {
       return '我可以按固定规则解释你的记录：今天/近 7 天的次数、逐日规律、总条数、'
           '同步时间、时间未知与未来时间、疑似无效事件，以及需要留意的事项。\n'
-          '也能答 App 怎么用：导入演示数据、连接设备、导出 CSV、清空对话、搜索、'
+          '也能答 App 怎么用：连接设备、导出 CSV、清空对话、搜索、'
           '朗读、大字模式、切换在线等。\n'
           '我只讲记录和 App 用法，不做医疗判断、不给用药建议，也不把设备动作当成服药证明。\n'
           '想问通用健康知识，切到上面的「在线」；本地模式不联网、不需要账号。';
@@ -256,7 +255,7 @@ class MockAssistantProvider implements AssistantProvider {
     return '本地模式只按固定规则解释你的记录，不联网、也没有通用知识。\n'
         '我能直接回答这些：今天用了几次、数据是不是最新的、设备时间、总条数、'
         '异常记录、逐日空档、需要留意的事。\n'
-        '也能答 App 怎么用：导入演示数据、连接设备、导出 CSV、清空对话、搜索、'
+        '也能答 App 怎么用：连接设备、导出 CSV、清空对话、搜索、'
         '朗读、大字、切换在线。\n'
         '想问健康常识（例如某种疾病的科普），切到上面的「在线」就能问。\n'
         '当前记录摘要：${context.toPromptSummary()}';

@@ -136,24 +136,6 @@ void main() {
     }
   });
 
-  test('演示数据的未来同步时间同样不给设备维护建议', () {
-    // 演示源写不进 lastSyncAt，这里直接构造，确认两套文案确实分开了。
-    final observations = evaluateObservations(
-      AssistantContext(
-        totalCount: 3,
-        last7DaysCount: 1,
-        dailyCounts: const [0, 0, 0, 0, 0, 0, 1],
-        lastSyncAt: DateTime(2026, 10, 2, 9),
-        isDemo: true,
-      ),
-      now: now,
-    );
-    expect(
-      observations.firstWhere((item) => item.code == 'future_sync').text,
-      isNot(contains('核对设备时间')),
-    );
-  });
-
   test('任何观察文本都不出现诊断或剂量类结论', () {
     final observations = evaluateObservations(
       AssistantContext(
@@ -179,25 +161,7 @@ void main() {
     }
   });
 
-  test('演示数据不提示同步状态，也不给设备维护建议', () {
-    const demo = AssistantContext(
-      totalCount: 5,
-      last7DaysCount: 2,
-      unknownTimeCount: 1,
-      futureTimeCount: 1,
-      dailyCounts: [0, 1, 0, 0, 0, 0, 1],
-      isDemo: true,
-    );
-    final demoObservations = evaluateObservations(demo, now: now);
-    expect(
-      demoObservations.map((item) => item.code),
-      isNot(contains('never_synced')),
-    );
-    for (final observation in demoObservations) {
-      expect(observation.text, isNot(contains('设备校时')));
-      expect(observation.text, isNot(contains('核对设备时间')));
-    }
-
+  test('设备记录缺少同步时间时给出维护建议', () {
     const device = AssistantContext(
       totalCount: 5,
       last7DaysCount: 2,
@@ -231,7 +195,6 @@ void main() {
         last7DaysCount: 3,
         unknownTimeCount: 2,
         dailyCounts: [0, 1, 0, 2, 0, 0, 0],
-        isDemo: true,
       ),
     );
     expect(answer, contains('今天使用 0 次'));

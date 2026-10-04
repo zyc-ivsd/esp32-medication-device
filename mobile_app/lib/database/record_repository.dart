@@ -27,7 +27,5 @@ abstract class RecordRepository {
   Future<void> advanceSyncCursor(String deviceId, int seq,
       {int? firstSequence});
 
-  Future<int> seedDemo(List<MedicationRecord> records);
-  Future<void> clearDemo();
   Future<void> close();
 }

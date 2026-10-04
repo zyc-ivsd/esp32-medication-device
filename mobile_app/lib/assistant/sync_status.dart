@@ -2,12 +2,10 @@ import 'models/assistant_context.dart';
 import 'rules/observation_rules.dart';
 
 /// 同步状态的分类：助手卡上的一枚小徽章，一眼看出数据新不新。
-enum SyncStatus { demo, never, stale, fresh }
+enum SyncStatus { never, stale, fresh }
 
-/// 按数据源与同步时间分类。演示数据永远没有设备同步时间，单独一类（
-/// 与规则层一致：不给演示数据提示「尚未同步」）。
+/// 按设备数据的同步时间分类。
 SyncStatus syncStatus(AssistantContext context, DateTime now) {
-  if (context.isDemo) return SyncStatus.demo;
   final lastSync = context.lastSyncAt;
   if (lastSync == null) return SyncStatus.never;
   final localNow = now.toLocal();
@@ -23,7 +21,6 @@ SyncStatus syncStatus(AssistantContext context, DateTime now) {
 
 /// 徽章上的文字。只陈述数据新旧，不说设备好坏。
 String syncStatusLabel(SyncStatus status) => switch (status) {
-  SyncStatus.demo => '演示数据',
   SyncStatus.never => '尚未同步',
   SyncStatus.stale => '数据可能不是最新',
   SyncStatus.fresh => '已同步',

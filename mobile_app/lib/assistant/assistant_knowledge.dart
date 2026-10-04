@@ -193,11 +193,12 @@ const List<KnowledgeChunk> assistantKnowledge = [
     keywords: ['带上本轮', '多轮', '历史对话', '上下文', '追问'],
   ),
   KnowledgeChunk(
-    id: 'app.import',
-    title: '演示数据是什么、怎么导入',
-    body: '概览页有「导入演示数据」入口：没有硬件时生成一段示例记录用于体验功能；'
-        '连接硬件同步后会用正式记录替换。演示数据单独存放，清除演示数据不影响设备数据。',
-    keywords: ['导入', '演示数据', '示例数据', '演示', '模拟数据'],
+    id: 'app.data_source',
+    title: '设备记录从哪里来',
+    body:
+        'App 使用设备同步后保存在手机中的记录。概览、历史、CSV 和助手统计都读取设备事件。'
+        '请在概览页打开设备连接页进行蓝牙连接和同步；连接页单独展示收到的原始时间文本。',
+    keywords: ['数据来源', '记录来源', '数据从哪', '导入记录', '接收数据'],
   ),
   KnowledgeChunk(
     id: 'app.export',

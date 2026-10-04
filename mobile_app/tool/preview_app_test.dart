@@ -12,12 +12,14 @@ import 'package:medication_device_app/models/medication_record.dart';
 import 'package:medication_device_app/services/record_controller.dart';
 import 'package:medication_device_app/ble/ble_service.dart';
 import 'package:medication_device_app/ble/ble_status_page.dart';
+import '../test/support/preview_settings.dart';
 import '../test/widget_test.dart' show MemoryRecords;
 
 void main() {
   const output = String.fromEnvironment('PREVIEW_DIR');
   const fontPath = String.fromEnvironment('PREVIEW_FONT');
-  testWidgets('render app demo screens', (tester) async {
+  testWidgets('render app empty device screens', (tester) async {
+    initializePreviewSettings();
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -40,18 +42,15 @@ void main() {
       await tester.runAsync(loader.load);
     }
     final device = MemoryRecords(RecordSource.device);
-    final demo = MemoryRecords(RecordSource.demo);
     final controller = RecordController(
       deviceRepository: device,
-      demoRepository: demo,
       clock: () => DateTime(2026, 9, 12, 12),
     );
     addTearDown(() async {
       controller.dispose();
       await device.close();
-      await demo.close();
     });
-    await controller.importDemo();
+    await controller.refresh();
     final ble = BleService.test();
     addTearDown(ble.dispose);
     final key = GlobalKey();
@@ -106,9 +105,9 @@ void main() {
     await tester.tap(find.widgetWithText(ActionChip, '今天用了几次？'));
     await tester.pumpAndSettle();
     await capture('app-assistant');
-    await tester.tap(find.byTooltip('回答方式'));
+    await tester.tap(find.byTooltip('管理 API'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('在线助手设置'));
+    await tester.tap(find.text('添加新的 API'));
     await tester.pumpAndSettle();
     await capture('app-assistant-settings');
   }, skip: output.isEmpty);

@@ -242,7 +242,7 @@ class _AssistantPageState extends State<AssistantPage> {
   ChatMessage _welcomeMessage() => ChatMessage(
     role: ChatRole.assistant,
     text:
-        '你好，我可以解释${_context.isDemo ? '演示数据' : '本地设备记录'}的统计。'
+        '你好，我可以解释本地设备记录的统计。'
         '${_service.isRemote ? '当前使用在线助手。' : '当前使用本地规则回答，不联网。'}'
         '记录的动作次数不代表确认服药。',
     createdAt: DateTime.now(),
@@ -963,12 +963,7 @@ class _AssistantPageState extends State<AssistantPage> {
                 // 三列都得能被压窄。Row 里没有弹性项时，每一项都按文字固有宽度占位，
                 // 系统字号放大后「近 7 天疑似无效」这种长标签就会把整行顶出卡片
                 // （实测 1.5 倍字号、375 宽时横向溢出 12 像素）。
-                Flexible(
-                  child: _summaryItem(
-                    data.isDemo ? '今日 · 演示' : '今日',
-                    '${data.todayCount} 次',
-                  ),
-                ),
+                Flexible(child: _summaryItem('今日', '${data.todayCount} 次')),
                 Flexible(
                   child: _summaryItem('近 7 天', '${data.last7DaysCount} 次'),
                 ),
@@ -990,11 +985,10 @@ class _AssistantPageState extends State<AssistantPage> {
     );
   }
 
-  /// 同步状态徽章：演示/未同步/可能不是最新/已同步，一眼看出数据新不新。
+  /// 同步状态徽章：未同步/可能不是最新/已同步，一眼看出数据新不新。
   Widget _buildSyncBadge(AssistantContext data) {
     final status = syncStatus(data, DateTime.now());
     final (icon, color) = switch (status) {
-      SyncStatus.demo => (Icons.science_outlined, const Color(0xff8a6d1f)),
       SyncStatus.never => (Icons.sync_disabled, const Color(0xffc62828)),
       SyncStatus.stale => (Icons.sync_problem, const Color(0xffc62828)),
       SyncStatus.fresh => (

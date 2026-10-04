@@ -12,9 +12,7 @@ flowchart LR
   FW -->|BLE 时间文本| BLE[Android 连接页]
   BLE --> DB1[原型文本 SQLite]
   FW -. 正式事件协议待接入 .-> DB2[正式事件 SQLite]
-  DEMO[合成演示数据] --> DB3[演示 SQLite]
   DB2 --> UI[历史 / 统计 / CSV / 助手摘要]
-  DB3 --> UI
   UI --> LOCAL[默认本地规则助手]
   UI -. 当前仅本地运行 .-> LOCAL
   UI -. 在线：直连用户自己的模型 BYOK .-> MODEL[OpenAI 兼容模型 API<br/>Key 只在用户手机]
@@ -28,7 +26,7 @@ App 侧接口与上游解耦：切换网关上游不需要改 App。官方云这
 
 | 模块 | 已实现 | 仍需完成 |
 |---|---|---|
-| Android App 0.3.0 | A+B 合并、持久化、演示与设备数据隔离、历史/统计/CSV、权限与生命周期处理 | Android 真机整机验收、正式发布签名 |
+| Android App 0.3.2 | A+B 合并、设备记录持久化、历史/统计/CSV、移除演示数据、权限与生命周期处理 | Android 真机整机验收、正式发布签名 |
 | BLE 原型 | 扫描、连接、Notify、分片与 CRC、文本落库后 ACK/COMMIT、重试与去重；手机自动/手动校时、NVS 时钟快照、空闲浅睡眠与按键唤醒 | 与硬件组逐项实测校时、浅睡眠唤醒、断线、掉电、重传及功耗 |
 | 正式事件同步 | 数据模型、事务保存、冲突拒绝、连续位置等 App 基础 | 正式事件解码入库、游标续传、校时、按确认范围回收设备日志 |
 | 文字助手 | 本地规则引擎（9 条规则、可单测）；概览页“需要留意”卡片；在线助手 = 直连用户自己的模型（BYOK）、摘要发送确认与错误处理；设备端 RAG 关键词检索；系统 TTS 朗读 | 真实模型的端到端验收 |
@@ -61,7 +59,7 @@ flutter test
 flutter build apk --debug
 ```
 
-使用 Flutter 3.47.4、Dart 3.13.3、JDK 17、Android SDK 36；最低 Android 7.0 / API 24。打开 App 导入演示数据即可体验，无需硬件或服务器。Android 自动检查配置见 [.github/workflows](.github/workflows/README.md)，实际通过情况以对应提交的日志为准。
+使用 Flutter 3.47.4、Dart 3.13.3、JDK 17、Android SDK 36；最低 Android 7.0 / API 24。打开 App 后从概览进入设备连接页，授权蓝牙并连接装置；没有设备事件记录时显示空状态。App 用法可直接询问本地规则助手，在线问答需配置用户自己的模型服务。Android 自动检查配置见 [.github/workflows](.github/workflows/README.md)，实际通过情况以对应提交的日志为准。
 
 ## 仓库目录
 

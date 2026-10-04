@@ -1,5 +1,7 @@
 # Android 当前路线与交接（2026-09-23）
 
+> **2026-10-03 更新：当前开发分支仍为 `codex/android-xiaozhi-prep`，App 版本 0.3.2+5。** 已移除演示数据入口、生成器和数据源切换，旧演示库不再使用；所有统计来自设备事件记录。在线助手直连用户自己的模型，并保留长回复中断时已收到的内容。下文按日期保留旧阶段记录；当前安装与构建以 [App README](../mobile_app/README.md) 为准。
+
 当前代码在本地分支 `codex/android-xiaozhi-prep`，App 版本 `0.3.0+3`。团队只交付 Android；iOS 代码保留，自动 CI 停止。团队已把小智目标从自建服务调整为官方云；现有 Android 代码尚未连接官方云。
 
 > **2026-09-30 更新：小智路线（自建 + 官方云）已整体放弃。** 在线助手的 forward 路线锁定为 **App 直连用户自己的模型（BYOK）**——API Key 只能是用户自己的、加密保存在手机（`flutter_secure_storage`），调用时直接发送给所选模型服务、不经过团队服务器。下面派发表里第 2/3/4 项（核对官方云激活、开发官方 Provider）不再排期；在线能力已由 `DirectLlmAssistantProvider` 直连实现，并补了设备端 RAG 检索与朗读。规则见 [`assistant-model-access.md`](assistant-model-access.md)。
@@ -22,7 +24,7 @@
 - 概览页新增“需要留意”卡片，与助手**共用同一套规则**；助手页摘要卡片画出逐日次数，快捷问句增加“有什么建议？”。
 - 以上均不联网、不需要账号、不需要设备。
 
-**仍然受限**：助手的输入是**正式记录**（`RecordSummary`），而正式事件帧尚未冻结（见下表第 6 项）。所以目前只有“导入演示数据”时助手才有内容可解释；原型 BLE 时间文本**不会**进入摘要。相关前置条件见 [`assistant-data-requirements.md`](assistant-data-requirements.md)。
+**设备统计的前置条件**：助手的输入是**正式记录**（`RecordSummary`），而正式事件解码尚需接入（见下表第 6 项）。原型 BLE 时间文本**不会**进入摘要；没有完整事件时显示空摘要，不生成合成记录。相关前置条件见 [`assistant-data-requirements.md`](assistant-data-requirements.md)。
 
 ## 接下来按这个顺序派发
 

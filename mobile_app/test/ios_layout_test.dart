@@ -6,6 +6,7 @@ import 'package:medication_device_app/models/medication_record.dart';
 import 'package:medication_device_app/pages/home_page.dart';
 import 'package:medication_device_app/services/record_controller.dart';
 import 'widget_test.dart' show MemoryRecords;
+import 'support/record_fixtures.dart';
 
 void main() {
   for (final size in [
@@ -55,17 +56,13 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       final device = MemoryRecords(RecordSource.device);
-      final demo = MemoryRecords(RecordSource.demo);
-      final data = RecordController(
-        deviceRepository: device,
-        demoRepository: demo,
-      );
+      final data = RecordController(deviceRepository: device);
       addTearDown(() async {
         data.dispose();
         await device.close();
-        await demo.close();
       });
-      await data.importDemo();
+      await saveTestDeviceRecords(device, data.clock());
+      await data.refresh();
       Rect? anchor;
       await tester.pumpWidget(
         MaterialApp(
@@ -74,7 +71,7 @@ void main() {
             exportRecords: (records, source, origin) async {
               anchor = origin;
               expect(records.length, data.visibleRecords.length);
-              expect(source, RecordSource.demo);
+              expect(source, RecordSource.device);
             },
           ),
         ),

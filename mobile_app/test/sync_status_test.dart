@@ -5,12 +5,7 @@ import 'package:medication_device_app/assistant/sync_status.dart';
 void main() {
   final now = DateTime(2026, 9, 30, 12);
 
-  test('演示数据归为 demo，不看同步时间', () {
-    const context = AssistantContext(isDemo: true);
-    expect(syncStatus(context, now), SyncStatus.demo);
-  });
-
-  test('无同步时间且非演示 → never', () {
+  test('无同步时间 → never', () {
     const context = AssistantContext();
     expect(syncStatus(context, now), SyncStatus.never);
   });

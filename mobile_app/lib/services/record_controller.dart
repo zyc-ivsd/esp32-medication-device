@@ -6,30 +6,19 @@ import '../database/record_repository.dart';
 import '../models/medication_record.dart';
 import '../models/record_filter.dart';
 import '../models/record_summary.dart';
-import 'demo_data_service.dart';
 
 class RecordController extends ChangeNotifier {
-  RecordController(
-      {required this.deviceRepository,
-      required this.demoRepository,
-      DateTime Function()? clock})
-      : clock = clock ?? DateTime.now {
-    if (deviceRepository.source != RecordSource.device ||
-        demoRepository.source != RecordSource.demo) {
-      throw ArgumentError('Device and demo repositories must stay separate');
-    }
-    for (final repo in [deviceRepository, demoRepository]) {
-      _subscriptions.add(repo.changes.listen((_) {
-        if (repo.source == source) unawaited(refresh());
-      }));
-    }
+  RecordController({required this.deviceRepository, DateTime Function()? clock})
+    : clock = clock ?? DateTime.now {
+    _subscriptions.add(
+      deviceRepository.changes.listen((_) => unawaited(refresh())),
+    );
   }
 
   final RecordRepository deviceRepository;
-  final RecordRepository demoRepository;
   final DateTime Function() clock;
   final List<StreamSubscription<void>> _subscriptions = [];
-  RecordSource source = RecordSource.device;
+  RecordSource get source => RecordSource.device;
   RecordFilter filter = const RecordFilter();
   List<MedicationRecord> records = const [];
   RecordSummary? summary;
@@ -39,20 +28,10 @@ class RecordController extends ChangeNotifier {
   var _disposed = false;
   Future<void>? _latestRefresh;
 
-  RecordRepository get repository =>
-      source == RecordSource.device ? deviceRepository : demoRepository;
+  RecordRepository get repository => deviceRepository;
   List<MedicationRecord> get visibleRecords => records
       .where((record) => filter.accepts(record.timestamp))
       .toList(growable: false);
-
-  Future<void> selectSource(RecordSource value) async {
-    if (source == value) return;
-    source = value;
-    records = const [];
-    summary = null;
-    filter = const RecordFilter();
-    await refresh();
-  }
 
   void setFilter(RecordFilter value) {
     filter = value;
@@ -63,7 +42,7 @@ class RecordController extends ChangeNotifier {
     if (_disposed) return Future.value();
     final revision = ++_revision;
     // The Future returned to callers also waits for a newer refresh triggered
-    // by a repository event; awaiting import/source-switch must mean ready.
+    // by a repository event; awaiting refresh must mean the latest data is ready.
     final pending = Future<void>.microtask(() => _readSnapshot(revision));
     _latestRefresh = pending;
     return _waitForLatest(pending);
@@ -102,22 +81,6 @@ class RecordController extends ChangeNotifier {
         notifyListeners();
       }
     }
-  }
-
-  Future<int> importDemo() async {
-    final count =
-        await demoRepository.seedDemo(DemoDataService.create(clock()));
-    if (source != RecordSource.demo) {
-      await selectSource(RecordSource.demo);
-    } else {
-      await refresh();
-    }
-    return count;
-  }
-
-  Future<void> resetDemo() async {
-    await demoRepository.clearDemo();
-    if (source == RecordSource.demo) await refresh();
   }
 
   @override

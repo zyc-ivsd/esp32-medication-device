@@ -96,24 +96,15 @@ class _DatabaseLoaderState extends State<_DatabaseLoader> {
   Future<void> _open() async {
     setState(() => _failed = false);
     SqliteRecordRepository? device;
-    SqliteRecordRepository? demo;
     try {
       device = await SqliteRecordRepository.open(source: RecordSource.device);
-      demo = await SqliteRecordRepository.open(source: RecordSource.demo);
       if (!mounted) {
         await device.close();
-        await demo.close();
         return;
       }
-      setState(
-        () => _controller = RecordController(
-          deviceRepository: device!,
-          demoRepository: demo!,
-        ),
-      );
+      setState(() => _controller = RecordController(deviceRepository: device!));
     } catch (_) {
       await device?.close();
-      await demo?.close();
       if (mounted) setState(() => _failed = true);
     }
   }
@@ -124,7 +115,6 @@ class _DatabaseLoaderState extends State<_DatabaseLoader> {
     if (controller != null) {
       controller.dispose();
       unawaited(controller.deviceRepository.close());
-      unawaited(controller.demoRepository.close());
     }
     super.dispose();
   }

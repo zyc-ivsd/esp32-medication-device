@@ -2,7 +2,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 import 'prototype_protocol.dart';
 
-/// Kept separate from A's event/demo stores: a button timestamp has no event
+/// Kept separate from the device event store: a button timestamp has no event
 /// type, pressure or confidence and cannot be turned into a medication event.
 abstract interface class PrototypeStore {
   Future<void> save(PrototypeRecord record);

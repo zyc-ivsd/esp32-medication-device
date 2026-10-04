@@ -868,7 +868,7 @@ void main() {
 
   testWidgets('摘要卡显示同步状态徽章', (tester) async {
     await _pump(tester);
-    // 默认 context 非演示且无同步时间 → 「尚未同步」。
+    // 默认 context 无同步时间 → 「尚未同步」。
     expect(find.text('尚未同步'), findsOneWidget);
   });
 

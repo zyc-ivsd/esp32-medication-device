@@ -36,7 +36,6 @@ void main() {
   const context = AssistantContext(
     todayCount: 2,
     last7DaysCount: 8,
-    isDemo: true,
     totalCount: 21,
     dailyCounts: [0, 1, 0, 2, 0, 0, 5],
   );

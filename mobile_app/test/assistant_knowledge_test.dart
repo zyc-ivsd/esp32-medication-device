@@ -106,8 +106,8 @@ void main() {
 
   test('App 功能片段都能被问到', () {
     expect(
-      retrieveKnowledge('怎么导入演示数据').map((c) => c.id),
-      contains('app.import'),
+      retrieveKnowledge('设备数据从哪里来').map((c) => c.id),
+      contains('app.data_source'),
     );
     expect(
       retrieveKnowledge('怎么导出记录').map((c) => c.id),

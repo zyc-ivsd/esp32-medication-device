@@ -1,6 +1,5 @@
 enum RecordSource {
-  device('设备记录'),
-  demo('演示数据');
+  device('设备记录');
 
   const RecordSource(this.label);
   final String label;

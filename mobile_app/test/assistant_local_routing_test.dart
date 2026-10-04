@@ -52,35 +52,11 @@ void main() {
     expect(answer, isNot(contains('最后一次同步是')));
   });
 
-  test('演示数据没有同步时间，也不提设备同步', () async {
-    final answer = await ask(
-      '数据是最新的吗',
-      const AssistantContext(isDemo: true, totalCount: 3, last7DaysCount: 1),
-    );
-    expect(answer, contains('演示数据没有设备同步时间'));
-  });
-
   test('问设备时间：报时间未知与未来时间两条，并给校时建议', () async {
     final answer = await ask('设备时间对吗？');
     expect(answer, contains('时间未知'));
     expect(answer, contains('时间晚于当前时间'));
     expect(answer, contains('校时'));
-  });
-
-  test('演示数据只陈述时间问题，不给校时建议', () async {
-    // 演示数据没有设备可维护，说「去设备上校时」只会让人去找一个不存在的东西。
-    final answer = await ask(
-      '时间是不是不对',
-      const AssistantContext(
-        isDemo: true,
-        totalCount: 3,
-        last7DaysCount: 1,
-        unknownTimeCount: 1,
-        dailyCounts: [0, 0, 0, 0, 1, 0, 0],
-      ),
-    );
-    expect(answer, contains('时间未知'));
-    expect(answer, isNot(contains('校时')));
   });
 
   test('问总条数：给出总量与今日、近 7 天', () async {
@@ -163,15 +139,10 @@ void main() {
     }
   });
 
-  test('问演示数据来源：演示时说清是示例，真机时说来自同步', () async {
-    final demoAnswer = await ask(
-      '这是演示数据吗',
-      const AssistantContext(isDemo: true, totalCount: 3, last7DaysCount: 1),
-    );
-    expect(demoAnswer, contains('演示数据'));
-
-    final deviceAnswer = await ask('这是演示数据吗', device);
-    expect(deviceAnswer, contains('不是演示数据'));
+  test('数据来源说明只指向设备同步', () async {
+    final answer = await ask('设备数据从哪里来', device);
+    expect(answer, contains('来自设备同步'));
+    expect(answer, isNot(contains('演示')));
   });
 
   test('问导出：指向历史记录页 CSV，且不含凭据', () async {
@@ -198,13 +169,7 @@ void main() {
   });
 
   test('新增分支的回答也不出现诊断、剂量、漏服、停药', () async {
-    for (final question in [
-      '蓝牙连不上',
-      '同步失败怎么办',
-      '这是演示数据吗',
-      '怎么导出记录',
-      '你能做什么',
-    ]) {
+    for (final question in ['蓝牙连不上', '同步失败怎么办', '数据来源是什么', '怎么导出记录', '你能做什么']) {
       final answer = await ask(question);
       for (final forbidden in ['诊断', '剂量', '漏服', '停药']) {
         expect(
@@ -218,7 +183,7 @@ void main() {
 
   test('App 功能求助走本地分支，不落到兜底', () async {
     final cases = <String, String>{
-      '怎么导入演示数据': '导入演示数据',
+      '设备数据从哪里来': '设备同步',
       '怎么清空对话': '清空对话',
       '怎么搜索历史': '搜索',
       '回答能朗读吗': '朗读',
@@ -238,7 +203,7 @@ void main() {
 
   test('App 功能求助的回答也不出现医疗判断表述', () async {
     for (final question in [
-      '怎么导入演示数据',
+      '设备数据从哪里来',
       '怎么清空对话',
       '怎么搜索历史',
       '回答能朗读吗',

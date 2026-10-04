@@ -102,12 +102,10 @@ class SqliteRecordRepository implements RecordRepository {
 
   @override
   Future<void> markSyncCompleted(DateTime instant) async {
-    if (source != RecordSource.device) {
-      throw StateError('Demo data is not a hardware sync');
-    }
-    await _db.insert('metadata',
-        {'key': 'last_sync_at', 'value': instant.toUtc().toIso8601String()},
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await _db.insert('metadata', {
+      'key': 'last_sync_at',
+      'value': instant.toUtc().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
     _changes.add(null);
   }
 
@@ -119,12 +117,12 @@ class SqliteRecordRepository implements RecordRepository {
   }
 
   @override
-  Future<void> advanceSyncCursor(String deviceId, int seq,
-      {int? firstSequence}) async {
-    if (source != RecordSource.device ||
-        deviceId.trim().isEmpty ||
-        seq < 0 ||
-        seq > 0xffffffff) {
+  Future<void> advanceSyncCursor(
+    String deviceId,
+    int seq, {
+    int? firstSequence,
+  }) async {
+    if (deviceId.trim().isEmpty || seq < 0 || seq > 0xffffffff) {
       throw ArgumentError('Invalid device sync cursor');
     }
     await _db.transaction((txn) async {
@@ -154,39 +152,6 @@ class SqliteRecordRepository implements RecordRepository {
       await txn.insert('sync_cursors', {'device_id': deviceId, 'seq': seq},
           conflictAlgorithm: ConflictAlgorithm.replace);
     });
-  }
-
-  @override
-  Future<int> seedDemo(List<MedicationRecord> records) async {
-    if (source != RecordSource.demo) {
-      throw StateError('Demo import requires the demo database');
-    }
-    final added = await _db.transaction((txn) async {
-      final seeded = await txn
-          .query('metadata', where: 'key = ?', whereArgs: ['demo_seeded']);
-      if (seeded.isNotEmpty) return 0;
-      var added = 0;
-      for (final record in records) {
-        if (await _save(txn, record) == SaveRecordResult.inserted) added++;
-      }
-      await txn.insert('metadata', {'key': 'demo_seeded', 'value': '1'});
-      return added;
-    });
-    _changes.add(null);
-    return added;
-  }
-
-  @override
-  Future<void> clearDemo() async {
-    if (source != RecordSource.demo) {
-      throw StateError('Device records cannot be cleared here');
-    }
-    await _db.transaction((txn) async {
-      await txn.delete('records');
-      await txn
-          .delete('metadata', where: 'key = ?', whereArgs: ['demo_seeded']);
-    });
-    _changes.add(null);
   }
 
   @override
