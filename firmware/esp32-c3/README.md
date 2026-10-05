@@ -14,6 +14,8 @@
 - `components/flash/`：SPIFFS 时间文本（16 位 hex UTC 秒）、持久文件编号、CRC、设备主动 REQ、逐条 ACK、同步重试、DA/DB 滚动归档。校时完成或每次按键写入后，若已连接且已订阅，固件扫描 SPIFFS 并主动发 `REQ|token|count`；未连接时记为待同步，下次握手补发。只有 `data_*` 会被传输；收到 `COMMIT` 后把本轮实际传输的文件改名为 `DA_<hex>_<1..50>.txt` 或 `DB_<hex>_<1..50>.txt`，当前组（存 NVS）满 50 后切组并先删除整组，因此最多保留两代、占用有界。
 - `components/deepsleep/`：无连接空闲 30 秒后浅睡眠，GPIO4 按键唤醒后恢复 BLE；连接/同步期间不睡眠。
 
+> **睡眠前必须先 `detachInterrupt()` 再登记唤醒源。** `attachInterrupt()` / `detachInterrupt()` 会作废已经登记的 light-sleep GPIO 唤醒源，而 `gpio_wakeup_enable()`、`esp_sleep_enable_gpio_wakeup()`、`detachInterrupt()` 全部返回 `ESP_OK`，日志看不出异常，设备会睡死无法唤醒。`main.ino` 中 `detachInterrupt()` 必须排在 `configureLightSleepWakeup()` 之前；调整主循环顺序时不要破坏这一点。板上变体测试与实测记录见 [ftest/README.md](../../ftest/README.md)。
+
 配套 Android App 0.3.0 的 TIME1 版本，APK 与固件一起更新。当前协议见 [Prototype v0.1](../../protocol/prototype-text-v01.md)，实际操作见 [A+B 联调](../../docs/member-ab-integration.md)。正式事件四特征协议尚未在本固件实现。
 
 从仓库根目录构建：

@@ -103,12 +103,26 @@ void loop() {
     keyPressed = false;
     if (millis() - lastButtonAt > 250) recordButtonPress();
   }
+  // The Arduino interrupt must be released BEFORE the light-sleep wake source is
+  // armed. Measured on the board with a variant test: gpio_wakeup_enable() first
+  // and attachInterrupt()/detachInterrupt() afterwards disables the wake source
+  // while still returning ESP_OK for every call, so the device sleeps and never
+  // wakes. With detachInterrupt() first, the same arm sequence wakes correctly.
   if (!deviceConnected && !syncActive && !keyPressed && digitalRead(BUTTON_PIN) == HIGH &&
-      uxQueueMessagesWaiting(commandQueue) == 0 && millis() - lastActivityAt >= IDLE_SLEEP_MS &&
-      configureLightSleepWakeup()) {
-    BLEDevice::getAdvertising()->stop();
-    if (deviceConnected) { refreshSleepDeadline(); return; }
+      uxQueueMessagesWaiting(commandQueue) == 0 && millis() - lastActivityAt >= IDLE_SLEEP_MS) {
     detachInterrupt(digitalPinToInterrupt(BUTTON_PIN));
+    if (!configureLightSleepWakeup()) {
+      // Wake could not be armed: restore the run-time interrupt so the button
+      // keeps working, rather than leaving the pin unmonitored.
+      attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), keyISR, FALLING);
+      return;
+    }
+    BLEDevice::getAdvertising()->stop();
+    if (deviceConnected) {
+      refreshSleepDeadline();
+      attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), keyISR, FALLING);
+      return;
+    }
     stopBLE();
     // Preserve an edge caught during teardown, and a short wake press even if
     // it has been released before the software restart rebuilds BLE.
