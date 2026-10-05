@@ -113,6 +113,9 @@ void loop() {
     // Preserve an edge caught during teardown, and a short wake press even if
     // it has been released before the software restart rebuilds BLE.
     const bool pressedDuringTeardown = keyPressed || digitalRead(BUTTON_PIN) == LOW;
+    // Enter light sleep exactly once. The old while(1) loop tested the function
+    // pointer (always true) and broke immediately, and a corrected version would
+    // have re-entered sleep right after the wake, making the button look dead.
     const bool wokeByButton = pressedDuringTeardown || enterLightSleep();
     keyPressed = false;
     if (wokeByButton) recordButtonPress();
