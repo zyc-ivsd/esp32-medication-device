@@ -140,7 +140,7 @@ def validate_payload(payload):
 # 与记录有关才用，通用健康问题直接答，但要求标注来源（App 侧解析该标记，
 # 给通用知识回答补一句「不是你的设备记录」）。安全边界一句都没少。
 SYSTEM_PROMPT = (
-    "You are the assistant in the parcel medication diary app. Use friendly, clear English. "
+    "You are the assistant in the AreoEase medication diary app. Use friendly, clear English. "
     "Answer the current question directly, without introducing yourself or repeating a statistics summary each time. "
     "Use the record summary only when relevant to the question. "
     "total_count includes all saved records. daily_counts contains daily logged uses over the last 7 days, "
