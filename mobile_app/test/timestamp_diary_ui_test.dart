@@ -72,7 +72,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.summary!.todayCount, 2);
       expect(controller.summary!.last7DaysCount, 3);
-      expect(find.text('2 uses'), findsOneWidget);
+      // Ignore the invisible metric-height probe; verify the user-facing count.
+      expect(find.text('2 uses').hitTestable(), findsOneWidget);
       expect(find.text('Your medication diary'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
