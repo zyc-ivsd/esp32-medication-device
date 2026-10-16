@@ -156,7 +156,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     animation: data,
     builder: (context, _) => Scaffold(
       appBar: AppBar(
-        title: const Text('AreoEase'),
+        title: const Text('AeroEase'),
         actions: [
           // 助手是核心入口，不能只藏在滚动区底部的按钮里。
           IconButton(

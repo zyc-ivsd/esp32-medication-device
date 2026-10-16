@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <application
-        android:label="AreoEase"
+        android:label="AeroEase"
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
         android:name="${applicationName}"

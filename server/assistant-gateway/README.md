@@ -1,6 +1,6 @@
 # Legacy assistant gateway
 
-This Python gateway is retained as an earlier integration experiment. The current product direction is local, offline assistance; deployment of this gateway is not required for that workflow. Its presence does not mean Xiaozhi or cloud AI is part of the intended AreoEase experience.
+This Python gateway is retained as an earlier integration experiment. The current product direction is local, offline assistance; deployment of this gateway is not required for that workflow. Its presence does not mean Xiaozhi or cloud AI is part of the intended AeroEase experience.
 
 ## Modes
 

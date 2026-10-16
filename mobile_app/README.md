@@ -1,4 +1,4 @@
-# AreoEase Android · 0.4.1+7
+# AeroEase Android · 0.4.1+7
 
 English-language medication diary built with Flutter / Dart, with a lavender and peach interface. Android is the delivery target. There is no runtime demonstration dataset.
 
@@ -6,7 +6,7 @@ The project hardware target is **ESP32-S3**. The retained firmware and CI still 
 
 ## Install and use
 
-Android 7.0 / API 24 or later is required. Transfer the APK to the phone, open it in the file manager, allow installation and open **AreoEase**. Use **Overview → Device connection**, grant Bluetooth permissions and connect inside the app. Wake a sleeping device with its button before scanning.
+Android 7.0 / API 24 or later is required. Transfer the APK to the phone, open it in the file manager, allow installation and open **AeroEase**. Use **Overview → Device connection**, grant Bluetooth permissions and connect inside the app. Wake a sleeping device with its button before scanning.
 
 Use the complete firmware from `codex/android-xiaozhi-prep`; older firmware without HELLO/READY cannot complete the handshake. TIME1 firmware is calibrated with UTC only (`TM`/`TOK`/`TER`) before transferring records. See [the wire protocol](../protocol/prototype-text-v01.md).
 

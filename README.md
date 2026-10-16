@@ -1,6 +1,6 @@
-# parcel — AreoEase
+# parcel — AeroEase
 
-AreoEase is the Android companion app for parcel's portable aerosol delivery project. It transfers device timestamps over Bluetooth, stores them on the phone, and presents a medication-use diary with daily counts, history, CSV export, and an offline rule-based assistant. The interface is English with a lavender and peach palette.
+AeroEase is the Android companion app for parcel's portable aerosol delivery project. It transfers device timestamps over Bluetooth, stores them on the phone, and presents a medication-use diary with daily counts, history, CSV export, and an offline rule-based assistant. The interface is English with a lavender and peach palette.
 
 ## Hardware target: ESP32-S3
 
@@ -8,7 +8,7 @@ AreoEase is the Android companion app for parcel's portable aerosol delivery pro
 
 ## User workflow
 
-1. Open AreoEase on an Android phone and connect through the device page.
+1. Open AeroEase on an Android phone and connect through the device page.
 2. Synchronize button-generated timestamps over BLE.
 3. Review medication-use times and daily counts in Overview and History.
 4. Export selected entries as CSV or ask the local assistant about the stored counts.
@@ -36,7 +36,7 @@ flutter test
 flutter build apk --debug
 ```
 
-The Android app is **AreoEase 0.4.1+7**. The development toolchain uses Flutter 3.47.4, Dart 3.13.3, JDK 17, and Android SDK 36. Android 7.0 / API 24 or later is required. Debug APKs are intended for testing; retain the application ID and signing certificate for in-place updates that preserve local data.
+The Android app is **AeroEase 0.4.1+7**. The development toolchain uses Flutter 3.47.4, Dart 3.13.3, JDK 17, and Android SDK 36. Android 7.0 / API 24 or later is required. Debug APKs are intended for testing; retain the application ID and signing certificate for in-place updates that preserve local data.
 
 ## Repository guide
 

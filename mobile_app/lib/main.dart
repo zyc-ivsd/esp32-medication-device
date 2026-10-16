@@ -73,7 +73,7 @@ class MedicationDeviceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'AreoEase · Medication diary',
+    title: 'AeroEase · Medication diary',
     debugShowCheckedModeBanner: false,
     locale: const Locale('en'),
     supportedLocales: const [Locale('en')],

@@ -63,7 +63,7 @@ class _BleStatusPageState extends State<BleStatusPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'Open system settings, find AreoEase, enable Bluetooth permission and scan again.',
+          'Open system settings, find AeroEase, enable Bluetooth permission and scan again.',
         ),
       ),
     );

@@ -1,6 +1,6 @@
 # Hardware — ESP32-S3 project target
 
-This directory contains the hardware design assets for the parcel aerosol delivery project. AreoEase is the companion app name; existing design filenames retain the spelling used by their authors.
+This directory contains the hardware design assets for the parcel aerosol delivery project. AeroEase is the companion app name; existing design filenames retain the spelling used by their authors.
 
 | Asset | File |
 |---|---|
