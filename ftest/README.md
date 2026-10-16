@@ -1,111 +1,30 @@
-# ftest —— 独立固件测试
+# Isolated firmware diagnostics
 
-与 `firmware/` 平级的测试目录，放**一次性、自包含**的固件验证程序。
+This directory contains self-contained Arduino sketches for investigating individual firmware issues. Each sketch lives in a matching directory. These tests concern the earlier **ESP32-C3** prototype; the project's **ESP32-S3** target requires separate validation.
 
-和 `firmware/` 的区别：
+## Light-sleep GPIO wake test
 
-| | `firmware/` | `ftest/` |
+`lightsleep_wake` uses serial output without BLE, SPIFFS, or LEDs. Connect a button between GPIO4 and GND. Use 115200 baud and open the serial monitor before resetting the board.
+
+Select a variant by pressing the button during the six-second selection window, then press once more to start the five-second sleep countdown. Press again to wake the board and inspect `WOKEN UP`, the wake cause, and `RESULT`.
+
+| Presses | Variant | Operations before sleep |
 |---|---|---|
-| 用途 | 正式原型固件 | 单点问题的最小复现 |
-| 依赖 | BLE / SPIFFS / NVS / 主循环全都要 | 尽量不依赖任何东西 |
-| 生命周期 | 长期维护 | 问题查清后即可删除 |
+| 0 or 1 | A | Configure GPIO wake only |
+| 2 | B | Attach/detach interrupt, then configure wake |
+| 3 | C | B, with input pull-up reapplied before configuring wake |
+| 4 | D | Configure wake before attaching/detaching the interrupt |
 
-单个测试一个子目录，目录名即 sketch 名（Arduino 要求 `.ino` 与所在文件夹同名）。
+A GPIO wake result is expected for a successful button wake. An undefined or different cause needs investigation; no output alone is not sufficient to diagnose the board because USB serial behavior can also change during sleep. Light-sleep return resumes execution rather than restarting the sketch.
 
-## lightsleep_wake
+## Recorded C3 results — October 6, 2026
 
-浅睡眠 GPIO4 唤醒的最小测试。**只用串口**，不含 LED、BLE、SPIFFS。
+The existing hardware test notes report that A, B, and C woke successfully, while D failed in two trials. Attaching/detaching the interrupt after arming GPIO wake invalidated the intended wake configuration in that tested setup, despite successful wake-configuration return codes.
 
-背景：正式固件进入浅睡眠后，按 GPIO4 无任何反应，不写文件、也无法连接手机。
-已确认的两个事实：进睡眠前 `digitalRead(GPIO4)=1`（上拉正常），
-`gpio_wakeup_enable` / `esp_sleep_enable_gpio_wakeup` 都返回 `ESP_OK`。
-所以"上拉丢失""配置失败"两条推测已排除。本测试要回答的是：
-**去掉所有其它代码后，浅睡眠 GPIO 唤醒本身能不能工作。**
+The firmware fix moves `detachInterrupt()` before `configureLightSleepWakeup()`. The earlier notes report a successful sequence of wake, record creation, software restart, clock calibration, synchronization, and archiving. These are historical C3 results, not new tests or evidence of S3 compatibility.
 
-### 运行流程
+## Reference source
 
-1. 上电 → 打印状态 → 等待按键
-2. 按下 GPIO4 → 打印 `SLEEPING IN 5 SECONDS`，随后 5 秒每秒打印一次状态
-3. 5 秒结束 → 进入浅睡眠
-4. 再次按下 GPIO4 → 唤醒 → 打印 `WOKEN UP` 和唤醒原因
-5. 回到第 1 步循环
-
-### 接线
-
-GPIO4 —— 按钮 —— GND（松开为高电平，按下为低电平）。
-
-编译烧录方式同正式固件，串口 115200。监视器要**先打开再复位板子**，否则看不到开头的输出。
-
-### 怎么看结果
-
-按键唤醒后应出现：
-
-```
-**************** WOKEN UP ****************
-esp_light_sleep_start returned 0 (0=ESP_OK)
-WAKE_CAUSE=7 (GPIO (button))
-sleeps=1 wakes=1
-GPIO4 level after wake: 1
-RESULT: woken by GPIO4 -- light sleep wake works.
-```
-
-| 现象 | 含义 |
-|---|---|
-| `WAKE_CAUSE=7`，`RESULT: woken by GPIO4` | 浅睡眠唤醒本身正常 → 问题在正式固件的 `stopBLE()` / `detachInterrupt()` 等操作 |
-| `WAKE_CAUSE=UNDEFINED` | `esp_light_sleep_start()` 立刻返回，压根没睡进去 |
-| 唤醒了但 cause 不是 7 | 被其它源唤醒，GPIO 唤醒没生效 |
-| 按按钮后完全没有 `WOKEN UP` | 浅睡眠 GPIO 唤醒在这块板子上不工作，需要改用 deep sleep 方案 |
-
-### 注意
-
-- 睡眠期间 USB-CDC 掉电，串口会静默，这是正常现象；唤醒后会恢复。
-- 浅睡眠唤醒**不会**重启 sketch，所以 `setup()` 里出现非零 cause 说明是复位而非唤醒。
-- `sleeps` / `wakes` 存在 RTC 域，跨浅睡眠累加，但断电或按 RST 会清零。
-
-### 变体测试（当前版本）
-
-第一版测试证明：**只调用 `gpio_wakeup_enable()` 然后睡眠，可以正常唤醒**
-（`WAKE_CAUSE=7`）。所以唤醒机制本身没问题，故障一定来自正式固件在睡眠前
-多做的那些操作。本版本用**按键次数选择变体**，一个固件跑完全部对比，不必反复烧录。
-
-| 按几下 | 变体 | 睡眠前的额外操作 |
-|---|---|---|
-| 1 | A | 什么都不做（对照，已知能醒） |
-| 2 | B | `attachInterrupt(FALLING)` + `detachInterrupt` |
-| 3 | C | B + `pinMode(INPUT_PULLUP)` 重申 |
-| 4 | D | B，但 **GPIO 唤醒先登记**，之后再 attach/detach |
-| 0 | A | 默认（不按就是 A） |
-
-选完变体后**再按一下**开始 5 秒倒计时，然后进入浅睡眠，按按钮唤醒，
-打印 `RESULT`（`=> WOKE BY BUTTON` 或 `=> NOT WOKEN BY BUTTON`），
-随后自动回到变体选择。
-
-### 实测结论（2026-10-06）
-
-| 变体 | 顺序 | 结果 |
-|---|---|---|
-| A | `gpio_wakeup_enable` | ✅ 唤醒 |
-| B | `detachInterrupt` → `gpio_wakeup_enable` | ✅ 唤醒 |
-| C | `detachInterrupt` → `pinMode` → `gpio_wakeup_enable` | ✅ 唤醒 |
-| **D** | **`gpio_wakeup_enable` → `attachInterrupt` → `detachInterrupt`** | ❌ **不唤醒** |
-
-D 两次测试均稳定复现。**根因：`attachInterrupt()` / `detachInterrupt()` 会作废已经登记的
-light-sleep GPIO 唤醒源**，而 `gpio_wakeup_enable()`、`esp_sleep_enable_gpio_wakeup()`、
-`detachInterrupt()` 全部返回 `ESP_OK`，所以日志看起来完全正常。
-
-正式固件原来的顺序正是 D：
-
-```cpp
-if (... && configureLightSleepWakeup()) {   // 先登记唤醒源
-    detachInterrupt(...);                    // 再作废它  <- BUG
-}
-```
-
-修复方式是把 `detachInterrupt()` 提到 `configureLightSleepWakeup()` 之前，即变体 B 的顺序。
-已应用到 `firmware/esp32-c3/main/main.ino`，实测唤醒、写记录、软件重启、校时、
-同步、归档全链路正常。
-
-### 源码
 
 ```cpp
 /*

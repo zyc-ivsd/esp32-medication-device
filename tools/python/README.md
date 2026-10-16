@@ -1,17 +1,12 @@
-# Python 辅助工具
+# Python helper tools
 
-Python 工具运行在电脑上，不是手机 App 的运行依赖。
+This directory is reserved for desktop development utilities. Python is not a runtime dependency of the Android app.
 
-计划包含：
+Planned uses include BLE scanning and notification debugging, checksum and acknowledgment tests, test-fixture generation, and CSV/JSON analysis. These plans do not imply that each utility is implemented. Test fixtures are separate from the app's user-facing data; there is no runtime demonstration dataset.
 
-- BLE 扫描、连接和 Notify 调试；
-- CRC、数据包和 ACK 流程测试；
-- 模拟数据生成；
-- CSV/JSON 数据分析和绘图。
+From this directory, create and activate an environment before installing dependencies:
 
-安装依赖：
-
-```bash
+```sh
 python -m venv .venv
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```

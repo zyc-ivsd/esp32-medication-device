@@ -1,12 +1,13 @@
-# BLE 协议目录
+# Device protocol
 
-这里是 ESP32 固件、Flutter 手机 App 和电脑端测试工具共同使用的协议源文件。
+The Android app and firmware must implement the same wire contract, regardless of the board model. ESP32-S3 is the project hardware target; the retained implementation is currently under `firmware/esp32-c3/`.
 
-任何协议修改都应同时检查：
+- [BLE GATT](ble-gatt.md): service and characteristic design.
+- [Prototype text synchronization](prototype-text-v01.md): timestamp-file transfer and acknowledgment.
+- [Structured data format](data-format.md): structured-event design, distinct from timestamp-only files.
+- [Examples](examples/): protocol examples.
+- [Historical Xiaozhi bridge](xiaozhi-bridge.md): archived integration design, not the current product direction.
 
-1. ESP32 固件；
-2. Flutter App；
-3. Python 测试工具；
-4. `examples/` 中的示例数据。
+The current timestamp path uses a HELLO/READY handshake, UTC clock commands `TM` / `TOK` / `TER`, and token-matched synchronization requests. Records are acknowledged after durable storage; the app commits only after all expected indexes have been saved, and completes the round after DONE. Check both app and firmware implementations when an older document uses different command names.
 
-协议版本升级时，请更新 `version` 字段并在文档中记录兼容性。
+Each timestamp payload represents UTC Unix seconds as 16 hexadecimal digits. Timestamp-only files do not provide pressure, duration, confidence, or measured dose. Do not fill missing structured fields with invented values.

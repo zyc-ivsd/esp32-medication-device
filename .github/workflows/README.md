@@ -1,9 +1,9 @@
-# CI
+# Continuous integration
 
-- `android-check.yml`：自动静态检查、Flutter 测试、Android debug APK，以及 Python 网关协议测试。Flutter 3.47.4 的 Linux 安装包固定 SHA256，Python 使用 3.12。
-- **`flutter analyze` 对 warning 和 info 一律返回失败**：必须修到 **0 issue**。const 相关提示（`prefer_const_constructors`、`unnecessary_const`、const 构造函数里的断言）最常出现在测试文件中。
-- **在 fork 里跑 CI 需要两步**：Settings → Actions 启用 Actions；把默认分支改为包含 workflow 文件的开发分支（否则 Actions 页面只显示“从模板新建”引导页，也没有 `Run workflow` 按钮）。
-- `ios-check.yml`：历史 iOS 验证，改为仅手动触发，不随 Android 提交自动启动。
-- Android APK 是内部测试包；CI 的 debug 签名可能与本地包不同，不能保证相互覆盖安装。正式发布密钥和商店发布尚未配置。
-- CI 使用模拟 WebSocket，不连接真实小智、不需要生产密钥，也不代替 Android + ESP32 真机联调。
-- `firmware-check.yml`：运行纯 C++ 校时协议边界测试，使用 Arduino CLI 1.3.1 / Arduino-ESP32 3.3.11 编译 ESP32-C3 并上传固件及日志；不自动烧录，不替代浅睡眠和 BLE 真机验收。
+- `android-check.yml` runs static analysis, Flutter tests, a debug APK build, and Python gateway protocol tests. It pins the Flutter 3.47.4 Linux archive checksum and uses Python 3.12.
+- `flutter analyze` treats warnings and informational diagnostics as failures. The required result is zero issues.
+- Enable GitHub Actions in a fork. Workflows must be present on the default branch for their manual-dispatch controls to be available.
+- `ios-check.yml` is retained for historical, manually triggered checks. Android is the current delivery platform.
+- `firmware-check.yml` uses Arduino CLI 1.3.1 and Arduino-ESP32 3.3.11, runs firmware checks, and builds the **legacy ESP32-C3** target. It uploads artifacts and logs without flashing hardware. The project's **ESP32-S3** target requires its own validated board configuration; a passing C3 build does not validate S3.
+
+Debug APK signatures can differ between CI and local builds, preventing an in-place update. Public distribution requires a maintained release-signing process. Mock gateway tests do not contact a production model service and do not validate an actual upstream connection. Automated checks do not replace phone/BLE, GPIO wake, or physical-device testing.

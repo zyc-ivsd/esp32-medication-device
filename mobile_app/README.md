@@ -1,10 +1,12 @@
-# parcel Android · 0.4.0+6
+# AreoEase Android · 0.4.1+7
 
 English-language medication diary built with Flutter / Dart, with a lavender and peach interface. Android is the delivery target. There is no runtime demonstration dataset.
 
+The project hardware target is **ESP32-S3**. The retained firmware and CI still target the earlier ESP32-C3 prototype; S3 requires its own board port and hardware validation. See [firmware status](../firmware/README.md).
+
 ## Install and use
 
-Android 7.0 / API 24 or later is required. Transfer the APK to the phone, open it in the file manager, allow installation and open **parcel**. Use **Overview → Device connection**, grant Bluetooth permissions and connect inside the app. Wake a sleeping device with its button before scanning.
+Android 7.0 / API 24 or later is required. Transfer the APK to the phone, open it in the file manager, allow installation and open **AreoEase**. Use **Overview → Device connection**, grant Bluetooth permissions and connect inside the app. Wake a sleeping device with its button before scanning.
 
 Use the complete firmware from `codex/android-xiaozhi-prep`; older firmware without HELLO/READY cannot complete the handshake. TIME1 firmware is calibrated with UTC only (`TM`/`TOK`/`TER`) before transferring records. See [the wire protocol](../protocol/prototype-text-v01.md).
 
@@ -26,9 +28,7 @@ In-place updates require the same application ID (`org.igem.medication.medicatio
 
 **Local** uses fixed rules, not a language model. It explains counts, synchronization, data quality and app functions offline. English quick questions and answers are provided, while legacy Chinese query matching remains supported.
 
-**Online** connects directly to the user's OpenAI-compatible model API. In **Manage APIs**, enter the service URL, your own API key and model name, then confirm summary sharing. Credentials use `flutter_secure_storage`. No shared key is embedded in the APK, no team server is required, and Xiaozhi is not used.
-
-Requests include the question, aggregate diary context and relevant on-device reference snippets. Raw rows and device identifiers are not automatically uploaded. Optional conversation history is off by default and limited to relevant recent messages. Answers stream into the chat; interrupted/truncated replies remain visible with a notice and retry option. Source labels distinguish records from general AI knowledge.
+The product direction is offline-only assistance. Legacy online providers and API settings remain in this checkout, but are outside that direction. They must be removed or disabled in code before claiming that the shipped app cannot send questions or summaries to a model service. The retained [gateway](../server/assistant-gateway/README.md) is historical and is not needed for local rules.
 
 English read-aloud uses Android TTS (`en-US`) with a compatible installed offline voice. The app does not record speech or control the hardware. Records do not establish adherence, and the assistant does not prescribe or adjust medication.
 

@@ -1,11 +1,14 @@
-# 硬件资料
+# Hardware — ESP32-S3 project target
 
-这里放原理图、PCB、BOM、传感器连接和电源测试资料。
+This directory contains the hardware design assets for the parcel aerosol delivery project. AreoEase is the companion app name; existing design filenames retain the spelling used by their authors.
 
-当前硬件正在采购中。硬件到货后请补充：
+| Asset | File |
+|---|---|
+| Bill of materials | [BOM list.xlsx](<pcb/BOM list.xlsx>) |
+| Manufacturing files | [Gerber_AeroEase.zip](pcb/Gerber_AeroEase.zip) |
+| PCB drawing | [UCAS-China_AeroEase_PCB.pdf](pcb/UCAS-China_AeroEase_PCB.pdf) |
+| Circuit schematic | [AeroEase-Schematic.pdf](schematic/AeroEase-Schematic.pdf) |
 
-- 实际使用的 ESP32-S3 模组型号；
-- 传感器型号和连接方式；
-- 电源芯片、输入电压和输出波形；
-- BLE/Wi-Fi 启动时的峰值电流；
-- 烧录接线和照片。
+**ESP32-S3 is the project target.** Confirm the exact module and revision against the board and schematic before wiring or flashing. The retained firmware under `firmware/esp32-c3/` targets an earlier C3 prototype and needs a board-specific S3 port.
+
+For a reproducible hardware handoff, record the board revision, fitted components, pin assignments, power requirements, programming connections, and measured behavior. Attach test evidence to the corresponding board revision rather than transferring C3 results to S3 by assumption.
