@@ -1,6 +1,6 @@
 # Isolated firmware diagnostics
 
-This directory contains self-contained Arduino sketches for investigating individual firmware issues. Each sketch lives in a matching directory. These tests concern the earlier **ESP32-C3** prototype; the project's **ESP32-S3** target requires separate validation.
+This directory contains self-contained Arduino sketches for investigating individual firmware issues. Each sketch lives in a matching directory. These tests concern the project's **ESP32-C3** prototype.
 
 ## Light-sleep GPIO wake test
 
@@ -21,7 +21,7 @@ A GPIO wake result is expected for a successful button wake. An undefined or dif
 
 The existing hardware test notes report that A, B, and C woke successfully, while D failed in two trials. Attaching/detaching the interrupt after arming GPIO wake invalidated the intended wake configuration in that tested setup, despite successful wake-configuration return codes.
 
-The firmware fix moves `detachInterrupt()` before `configureLightSleepWakeup()`. The earlier notes report a successful sequence of wake, record creation, software restart, clock calibration, synchronization, and archiving. These are historical C3 results, not new tests or evidence of S3 compatibility.
+The firmware fix moves `detachInterrupt()` before `configureLightSleepWakeup()`. The earlier notes report a successful sequence of wake, record creation, software restart, clock calibration, synchronization, and archiving. These results describe the recorded C3 test session; they are not a new validation run.
 
 ## Reference source
 

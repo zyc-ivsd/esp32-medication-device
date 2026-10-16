@@ -2,9 +2,9 @@
 
 AeroEase is the Android companion app for parcel's portable aerosol delivery project. It transfers device timestamps over Bluetooth, stores them on the phone, and presents a medication-use diary with daily counts, history, CSV export, and an offline rule-based assistant. The interface is English with a lavender and peach palette.
 
-## Hardware target: ESP32-S3
+## Hardware: ESP32-C3
 
-**ESP32-S3 is the project hardware target.** The checked-in Arduino firmware under `firmware/esp32-c3/` and the firmware CI build still target the earlier ESP32-C3 prototype. They are retained under their original names so build instructions remain accurate. This repository does not yet establish an S3-compatible firmware build or successful S3 hardware validation. Select and validate the S3 board configuration before flashing an S3 device.
+The project uses **ESP32-C3**. The Arduino firmware is maintained under `firmware/esp32-c3/`, and firmware CI builds the `esp32:esp32:esp32c3` target. AeroEase communicates with the device over BLE.
 
 ## User workflow
 
@@ -43,7 +43,7 @@ The Android app is **AeroEase 0.4.1+7**. The development toolchain uses Flutter 
 | Directory | Contents |
 |---|---|
 | [mobile_app](mobile_app/README.md) | Flutter Android app and tests |
-| [firmware](firmware/README.md) | Hardware target and retained prototype firmware |
+| [firmware](firmware/README.md) | ESP32-C3 prototype firmware |
 | [hardware](hardware/README.md) | PCB, schematic, Gerber, and BOM assets |
 | [protocol](protocol/README.md) | BLE and record-format documentation |
 | [ftest](ftest/README.md) | Isolated firmware diagnostic sketches |

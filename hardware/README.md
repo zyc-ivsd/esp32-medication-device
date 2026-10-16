@@ -1,4 +1,4 @@
-# Hardware — ESP32-S3 project target
+# Hardware — ESP32-C3
 
 This directory contains the hardware design assets for the parcel aerosol delivery project. AeroEase is the companion app name; existing design filenames retain the spelling used by their authors.
 
@@ -9,6 +9,6 @@ This directory contains the hardware design assets for the parcel aerosol delive
 | PCB drawing | [UCAS-China_AeroEase_PCB.pdf](pcb/UCAS-China_AeroEase_PCB.pdf) |
 | Circuit schematic | [AeroEase-Schematic.pdf](schematic/AeroEase-Schematic.pdf) |
 
-**ESP32-S3 is the project target.** Confirm the exact module and revision against the board and schematic before wiring or flashing. The retained firmware under `firmware/esp32-c3/` targets an earlier C3 prototype and needs a board-specific S3 port.
+The project uses **ESP32-C3**, with Arduino firmware under `firmware/esp32-c3/`. Confirm the exact module and board revision against the schematic before wiring or flashing.
 
-For a reproducible hardware handoff, record the board revision, fitted components, pin assignments, power requirements, programming connections, and measured behavior. Attach test evidence to the corresponding board revision rather than transferring C3 results to S3 by assumption.
+For a reproducible hardware handoff, record the board revision, fitted components, pin assignments, power requirements, programming connections, and measured behavior. Attach test evidence to the corresponding board revision.

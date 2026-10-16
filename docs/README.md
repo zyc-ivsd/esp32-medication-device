@@ -1,6 +1,6 @@
 # Documentation guide
 
-The current product is **AeroEase for Android**, with **ESP32-S3** as the project hardware target. The retained firmware and CI still target the earlier ESP32-C3 prototype; see [firmware status](../firmware/README.md). The product direction uses local records and offline assistance. Legacy online code remains in the repository and is not removed by this documentation update.
+The current product is **AeroEase for Android**, with **ESP32-C3** hardware. The Arduino firmware and CI use the C3 target; see [firmware status](../firmware/README.md). The product direction uses local records and offline assistance. Legacy online code remains in the repository and is not removed by this documentation update.
 
 ## Development references
 

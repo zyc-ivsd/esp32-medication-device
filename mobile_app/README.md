@@ -2,7 +2,7 @@
 
 English-language medication diary built with Flutter / Dart, with a lavender and peach interface. Android is the delivery target. There is no runtime demonstration dataset.
 
-The project hardware target is **ESP32-S3**. The retained firmware and CI still target the earlier ESP32-C3 prototype; S3 requires its own board port and hardware validation. See [firmware status](../firmware/README.md).
+The app connects to the project's **ESP32-C3** device over BLE. The Arduino firmware and firmware CI use the C3 target. See [firmware status](../firmware/README.md).
 
 ## Install and use
 

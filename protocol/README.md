@@ -1,6 +1,6 @@
 # Device protocol
 
-The Android app and firmware must implement the same wire contract, regardless of the board model. ESP32-S3 is the project hardware target; the retained implementation is currently under `firmware/esp32-c3/`.
+The Android app and firmware must implement the same wire contract, regardless of the board model. The project uses ESP32-C3, with its firmware implementation under `firmware/esp32-c3/`.
 
 - [BLE GATT](ble-gatt.md): service and characteristic design.
 - [Prototype text synchronization](prototype-text-v01.md): timestamp-file transfer and acknowledgment.

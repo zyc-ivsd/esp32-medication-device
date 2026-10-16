@@ -1,10 +1,10 @@
-# Legacy ESP32-C3 firmware — Arduino
+# ESP32-C3 firmware — Arduino
 
-The project hardware target is now **ESP32-S3**. This directory retains the earlier **ESP32-C3** implementation and build instructions. It is not an S3 firmware release; porting and physical-board validation are required before using it on S3.
+This directory contains the project's **ESP32-C3** Arduino firmware and build instructions. Firmware CI uses the matching `esp32:esp32:esp32c3` board target.
 
 ## Setup
 
-The sketch entry point is `main/main.ino`. Use the complete firmware tree from `codex/android-xiaozhi-prep`, not an isolated copy of the sketch. The legacy board uses a button between GPIO4 and GND with an input pull-up. Serial output uses 115200 baud.
+The sketch entry point is `main/main.ino`. Use the complete firmware tree from `codex/android-xiaozhi-prep`, not an isolated copy of the sketch. The prototype board uses a button between GPIO4 and GND with an input pull-up. Serial output uses 115200 baud.
 
 Components cover BLE synchronization, SPIFFS file storage and archiving, UTC clock commands, and sleep/wake handling. SPIFFS is not automatically formatted on a mount failure.
 
@@ -24,7 +24,7 @@ Look for `CONNECTED`, `NOTIFY_SUBSCRIBED`, `CONTROL_RX HELLO`, and `NOTIFY READY
 
 NimBLE manages its notification subscription through its own callbacks; do not add a conflicting BLE2902 configuration. Keep firmware and app protocol changes together.
 
-## Legacy C3 build
+## C3 build
 
 Run from the repository root:
 
@@ -34,7 +34,7 @@ arduino-cli core install esp32:esp32@3.3.11 --additional-urls https://espressif.
 arduino-cli compile --fqbn esp32:esp32:esp32c3 firmware/esp32-c3/main
 ```
 
-This compiles for C3, not the S3 project target. See the [firmware overview](../README.md) for S3 migration requirements.
+This compiles for the project's ESP32-C3 target. See the [firmware overview](../README.md) for integration and validation guidance.
 
 ## Sleep and verification
 
