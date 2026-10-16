@@ -4,12 +4,8 @@
 /// 有了它，切换上游时就不必清空对话——插一条提示即可，历史仍然属于用户。
 enum ChatRole { user, assistant, system }
 
-/// 助手回答的来源。
-///
-/// 同屏可能出现三种来源的回答，用户必须能分清哪句是谁说的：
-/// - [local]：本地规则算出来的，只基于统计摘要；
-/// - [online]：在线模型，且这轮回答用到了记录/统计；
-/// - [knowledge]：在线模型的通用健康知识（例如某种疾病的常识），与设备记录无关。
+/// Local answers and archived sources retained for existing chat history.
+/// Online and knowledge tags are read-only compatibility values.
 enum ChatSource { local, online, knowledge }
 
 /// 用户对一条助手回答的反馈。
@@ -42,7 +38,7 @@ class ChatMessage {
   /// 这条是 App 写的失败提示，不是模型的回答（「模型服务响应超时」之类）。
   ///
   /// 界面上仍按助手气泡显示，但**不能被当成历史回灌给模型**——否则模型会看到
-  /// 自己上一条失败提示，当成已经答过的内容（见 `AssistantService._toTurns`）。
+  /// 自己上一条失败提示，当成已经答过的内容。
   final bool isError;
 
   /// 已收到的部分回答。保留供用户查看，但不能当作完整回答发进下一轮上下文。

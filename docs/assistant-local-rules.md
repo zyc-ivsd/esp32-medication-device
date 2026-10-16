@@ -96,4 +96,4 @@ AssistantPage
 
 - 在线助手的现行边界（BYOK，Key 加密保存在手机）：[assistant-model-access.md](assistant-model-access.md)
 - 摘要字段与在线契约（网关已废弃，仅作历史）：[protocol/xiaozhi-bridge.md](../protocol/xiaozhi-bridge.md)
-- 在线助手网关（已废弃，仅作历史）：[server/assistant-gateway/README.md](../server/assistant-gateway/README.md)
+- 在线助手网关（已废弃，仅作历史）：[server/assistant-gateway/README.md](https://github.com/zyc-ivsd/esp32-medication-device/blob/aeb1fc4/server/assistant-gateway/README.md)

@@ -19,7 +19,7 @@ The team defines one valid button-generated timestamp as one medication-use entr
 
 Original device text is retained locally, and valid timestamps populate the diary. A record is acknowledged only after its required local writes succeed. Incomplete synchronization can be retried; conflicting content under an existing identity is rejected. Unknown or future timestamps remain inspectable but do not contribute to current daily counts.
 
-The product direction is offline assistance without cloud AI or runtime demonstration data. Legacy online-provider code, settings, and gateway experiments remain in this checkout; documenting the offline direction does not remove those network paths. The local assistant uses fixed rules, not an on-device language model.
+The assistant works offline with fixed local rules, not a language model. Cloud providers, API settings, credential-storage dependencies, and the experimental gateway have been removed. There is no runtime demonstration dataset. Release builds do not request Android INTERNET permission; debug/profile builds retain it for Flutter development tools.
 
 ## Development
 
@@ -33,10 +33,10 @@ cd mobile_app
 flutter pub get --enforce-lockfile
 flutter analyze
 flutter test
-flutter build apk --debug
+flutter build apk --release
 ```
 
-The Android app is **AeroEase 0.4.1+7**. The development toolchain uses Flutter 3.47.4, Dart 3.13.3, JDK 17, and Android SDK 36. Android 7.0 / API 24 or later is required. Debug APKs are intended for testing; retain the application ID and signing certificate for in-place updates that preserve local data.
+The Android app is **AeroEase 0.4.2+8**. The development toolchain uses Flutter 3.47.4, Dart 3.13.3, JDK 17, and Android SDK 36. Android 7.0 / API 24 or later is required. Debug APKs are intended for testing; retain the application ID and signing certificate for in-place updates that preserve local data.
 
 ## Repository guide
 
@@ -49,7 +49,6 @@ The Android app is **AeroEase 0.4.1+7**. The development toolchain uses Flutter 
 | [ftest](ftest/README.md) | Isolated firmware diagnostic sketches |
 | [docs](docs/README.md) | Development notes and historical handoffs |
 | [tools/python](tools/python/README.md) | Desktop helper-tool area |
-| [server/assistant-gateway](server/assistant-gateway/README.md) | Legacy gateway experiments |
 | [.github/workflows](.github/workflows/README.md) | Automated checks |
 
 Android is the current delivery platform. Retained iOS files and earlier architecture notes are historical material. Source code and the current build configuration take precedence over older plans. See [LICENSE](LICENSE) for licensing terms.

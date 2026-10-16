@@ -16,17 +16,7 @@ abstract class AssistantChatStore {
   Future<void> clear();
 }
 
-/// 用 `shared_preferences` 保存聊天记录。
-///
-/// **失败语义与 `SharedPreferencesAssistantCredentialsStore` 刻意不同**：
-/// - 凭据（访问码 / API Key）写不进去必须报错，绝不能假装存下了——用户会以为
-///   配置好了，实际下次打开就没了，甚至以为已经删掉的 Key 还在；
-/// - 聊天记录只是便利：读不出来就当没有历史，写不进去也只是这次没落盘，
-///   内存里的对话照常可用，不该因为存储故障打断用户。
-/// 所以这里全部字段都不抛异常。谁要把凭据也改成静默降级，先回来看这段注释。
-///
-/// 明文存储在这里是可接受的：聊天内容与设备记录属于同一信任级（都是本机的记录
-/// 摘要与解释），且**不含任何凭据**——凭据只走 `flutter_secure_storage`。
+/// Stores chat history locally. Storage failures do not interrupt the session.
 class SharedPreferencesAssistantChatStore implements AssistantChatStore {
   SharedPreferencesAssistantChatStore({this.maxMessages = 200});
 

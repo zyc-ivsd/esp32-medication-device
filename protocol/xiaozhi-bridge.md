@@ -1,5 +1,7 @@
 # Android → 助手网关：文字助手协议 v1
 
+> Historical design note: cloud AI, model API configuration, and the gateway were removed in AeroEase 0.4.2. The instructions below do not apply to the current offline app.
+
 > **已废弃（仅作历史资料）。** 自建网关（含 `xiaozhi` / `llm` / `mock` 三种上游）已随小智路线一起放弃；在线助手的现行路线是 App 直连用户自己的模型（BYOK），不再经过本网关。接口与字段记录保留供归档与对比，不再作为交付或验收依据。现行边界见 [`../docs/assistant-model-access.md`](../docs/assistant-model-access.md)。
 >
 > `/v1/assistant/chat` 是**本仓库实现的网关接口**，既不是小智官方 API，也不是任何一个上游提供的 REST API。官方云接入待确认，详见[官方云说明](../docs/xiaozhi-official-cloud.md)。
@@ -99,4 +101,4 @@ App 显示本地固定错误说明，不向用户回显上游内部内容；失�
 - 当前仅适合单人/团队受控原型联调；多人账号鉴权、独立上游身份与记忆隔离、限流与运维审计尚未实现。不要让多份网关共享同一个上游设备身份。
 - 本网关没有修改记录、调整剂量、触发硬件的接口，也不实现 MCP 客户端。上游服务器自己的工具须另外禁用，不能靠提示词阻止工具执行。
 
-部署命令、鉴权与验收清单见 [网关 README](../server/assistant-gateway/README.md)。
+部署命令、鉴权与验收清单见 [网关 README](https://github.com/zyc-ivsd/esp32-medication-device/blob/aeb1fc4/server/assistant-gateway/README.md)。

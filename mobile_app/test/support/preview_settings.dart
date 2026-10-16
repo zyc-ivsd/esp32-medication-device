@@ -1,8 +1,6 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Preview uses empty in-memory settings, never the host's stored credentials.
+/// Preview uses empty in-memory settings, never the host's saved preferences.
 void initializePreviewSettings() {
-  FlutterSecureStorage.setMockInitialValues({});
   SharedPreferences.setMockInitialValues({});
 }

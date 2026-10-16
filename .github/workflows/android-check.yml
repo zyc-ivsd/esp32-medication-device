@@ -1,7 +1,6 @@
 name: Android app check
 
-# 只跑 App。网关侧（含 App↔网关 提示词同步）在 gateway-check.yml —— 分开是为了
-# 改服务端不必烧掉一次 ~10 分钟的 APK 构建，反之改 App 也不必等 Python 测试。
+# Android-only, offline assistant. Release artifacts omit development network permission.
 on:
   push:
     branches: [main, codex/android-xiaozhi-prep]
@@ -53,12 +52,20 @@ jobs:
         run: |
           set -euo pipefail
           flutter analyze --no-pub 2>&1 | tee build/android-validation/analyze.txt
-          flutter test --no-pub --reporter expanded 2>&1 | tee build/android-validation/tests.txt
+          flutter test --no-pub --concurrency=1 --reporter expanded 2>&1 | tee build/android-validation/tests.txt
       - name: Build internal test APK
         run: |
           set -euo pipefail
-          flutter build apk --debug --no-pub 2>&1 | tee build/android-validation/build.txt
-          sha256sum build/app/outputs/flutter-apk/app-debug.apk > build/android-validation/apk-sha256.txt
+          flutter build apk --release --no-pub 2>&1 | tee build/android-validation/build.txt
+          sha256sum build/app/outputs/flutter-apk/app-release.apk > build/android-validation/apk-sha256.txt
+      - name: Verify release APK has no network permission
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions build/app/outputs/flutter-apk/app-release.apk | tee build/android-validation/apk-permissions.txt
+          if grep -q 'android.permission.INTERNET' build/android-validation/apk-permissions.txt; then
+            echo "Offline release unexpectedly requests INTERNET permission"
+            exit 1
+          fi
       - name: Upload validation logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -67,10 +74,10 @@ jobs:
           path: mobile_app/build/android-validation/*.txt
           retention-days: 14
           if-no-files-found: warn
-      - name: Upload debug APK
+      - name: Upload offline APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-internal-debug-${{ github.sha }}
-          path: mobile_app/build/app/outputs/flutter-apk/app-debug.apk
+          name: android-internal-offline-${{ github.sha }}
+          path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
           if-no-files-found: error

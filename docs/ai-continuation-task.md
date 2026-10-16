@@ -1,5 +1,7 @@
 # AI 续作任务说明：ESP32-S3 智能用药装置
 
+> Historical design note: cloud AI, model API configuration, and the gateway were removed in AeroEase 0.4.2. The instructions below do not apply to the current offline app.
+
 > 此文件是早期交接，以下“当前提交”、本地路径和计划均已过时，保留供追溯。继续开发请以根 README、[Android 路线](android-roadmap.md)及本地 Git 实际状态为准；当前只推进 Android。
 
 这份文档用于交给其他 AI 编程工具，帮助其在现有仓库基础上继续开发。请先阅读本文件、根目录 `README.md` 以及 `protocol/` 目录中的协议文档，再修改代码。

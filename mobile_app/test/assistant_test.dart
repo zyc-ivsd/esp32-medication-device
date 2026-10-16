@@ -15,8 +15,6 @@ void main() {
   });
 
   test('assistant context keys match the gateway contract', () {
-    // 网关用严格相等校验字段集合（多一个少一个都是 400），所以这份字面量必须和
-    // server/assistant-gateway/tests/test_gateway.py 里那份保持一致。
     expect(context.toJson().keys.toSet(), {
       'today_count',
       'last_7_days_count',

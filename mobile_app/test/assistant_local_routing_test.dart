@@ -126,7 +126,7 @@ void main() {
   test('兜底不再只丢一句摘要，而是说清能问什么、答不了什么', () async {
     final answer = await ask('介绍一下哮喘');
     expect(answer, contains('Local uses fixed rules to explain saved records'));
-    expect(answer, contains('Online'));
+    expect(answer, isNot(contains('Switch to Online')));
     expect(answer, contains('Current summary'));
     // 兜底也不该把通用知识问题硬说成记录结论。
     expect(answer, isNot(contains('今天使用')));
@@ -171,7 +171,7 @@ void main() {
     for (final question in ['你能做什么', 'What can I ask?', '怎么用这个助手']) {
       final answer = await ask(question);
       expect(answer, contains('fixed local rules'), reason: question);
-      expect(answer, contains('Online'), reason: question);
+      expect(answer, isNot(contains('Switch to Online')), reason: question);
       for (final forbidden in ['诊断', '剂量', '漏服']) {
         expect(
           answer,
@@ -208,7 +208,7 @@ void main() {
       '怎么搜索历史': 'Search',
       'Can answers be read aloud?': 'Read aloud',
       '字太小了怎么办': 'Larger text',
-      '怎么联网': 'Online',
+      '怎么联网': 'offline',
     };
     for (final entry in cases.entries) {
       final answer = await ask(entry.key);

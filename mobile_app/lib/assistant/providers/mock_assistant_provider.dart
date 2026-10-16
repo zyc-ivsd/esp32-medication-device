@@ -66,7 +66,7 @@ class MockAssistantProvider implements AssistantProvider {
   static const _connectionAnswer =
       'Check the battery, wake the device with its button and make sure Bluetooth is available. '
       'Then scan again inside the app.\n'
-      'If you see an error code, ask Online what it means. '
+      'If an error persists, check the device page and record the error for support. '
       'A failed sync does not delete device files.';
 
   @override
@@ -238,7 +238,7 @@ class MockAssistantProvider implements AssistantProvider {
       '音调',
     })) {
       return 'Tap Read aloud beside an answer to use Android text-to-speech. '
-          'Offline playback depends on an installed English voice and its engine. '
+          'Read aloud requires an installed English voice marked as offline-capable. '
           'Tap Stop to end playback. '
           'More → Read-aloud settings controls automatic playback, speed and pitch.';
     }
@@ -254,9 +254,8 @@ class MockAssistantProvider implements AssistantProvider {
       '在线设置',
       'api key',
     })) {
-      return 'Tap Online and add your own model service '
-          '(URL, API key and model name). The key is encrypted on your phone and sent directly to that service. '
-          'Local works without a model configuration or network.';
+      return 'This assistant works offline with fixed local rules. '
+          'Cloud model connections and API configuration are not available.';
     }
 
     if (_matchesAny(normalizedQuestion, const {
@@ -273,9 +272,9 @@ class MockAssistantProvider implements AssistantProvider {
       return 'I use fixed local rules to explain today and weekly counts, daily patterns, totals, '
           'sync status, unknown and future times, invalid events and items needing attention.\n'
           'I can also explain connecting, CSV export, clearing or searching chat, '
-          'read aloud, larger text and Online mode.\n'
+          'read aloud and larger text.\n'
           'A logged use does not verify ingestion; I do not diagnose or advise on medication doses.\n'
-          'Switch to Online for general health information. Local needs no network or account.';
+          'The assistant needs no network or account.';
     }
 
     // 兜底不再只丢一句摘要：先说清本地模式能答什么、答不了什么，
@@ -284,8 +283,7 @@ class MockAssistantProvider implements AssistantProvider {
         'Ask about uses today, sync status, device time, totals, '
         'invalid events, days without records or things needing attention.\n'
         'I can also explain connecting, CSV export, clearing or searching chat, '
-        'read aloud, larger text and Online mode.\n'
-        'Switch to Online for general questions.\n'
+        'read aloud and larger text.\n'
         'Current summary: ${context.toPromptSummary()}';
   }
 

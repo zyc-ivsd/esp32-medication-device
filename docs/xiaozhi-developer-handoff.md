@@ -1,5 +1,7 @@
 # 小智接入开发交接（Android）
 
+> Historical design note: cloud AI, model API configuration, and the gateway were removed in AeroEase 0.4.2. The instructions below do not apply to the current offline app.
+
 > **2026-09-30 更新：小智路线（官方云 + 自建智控台）已整体放弃，本文仅作历史资料。** 在线助手的现行路线是 App 直连用户自己的模型（BYOK），API Key 只能是用户自己的、绝不出手机，见 [`assistant-model-access.md`](assistant-model-access.md)。下面的分支交接、官方云核查与接入顺序不再作为待办主线。
 
 **继续开发的分支：`codex/android-xiaozhi-prep`。** `main` 尚未包含 Android 0.3.0、A+B BLE 合并与助手接口。克隆后执行 `git fetch origin`、`git switch --track origin/codex/android-xiaozhi-prep`，在此分支上新建自己的功能分支；不要从 `main` 或旧 `ble_connect` 开始。
@@ -8,7 +10,7 @@
 >
 > 官方设备激活要求用 ESP32 eFuse 里的 HMAC KEY0 对服务器 challenge 签名，手机算不出来；官方也没有给第三方 App 的聊天 API。在线助手现在走本仓库网关的三种上游（`mock` / `xiaozhi` / `llm`），其中**知识库 RAG、角色设定和大模型都在自建 `xiaozhi-esp32-server` 的智控台里配**。
 >
-> 本文下面的官方激活核查步骤保留作为**证据记录**，不再作为待办主线。结论和可操作步骤见 [`xiaozhi-official-cloud.md`](xiaozhi-official-cloud.md) 与 [`../server/assistant-gateway/README.md`](../server/assistant-gateway/README.md)。
+> 本文下面的官方激活核查步骤保留作为**证据记录**，不再作为待办主线。结论和可操作步骤见 [`xiaozhi-official-cloud.md`](xiaozhi-official-cloud.md) 与 [`../server/assistant-gateway/README.md`](https://github.com/zyc-ivsd/esp32-medication-device/blob/aeb1fc4/server/assistant-gateway/README.md)。
 
 ## 分支审核
 

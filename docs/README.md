@@ -1,6 +1,6 @@
 # Documentation guide
 
-The current product is **AeroEase for Android**, with **ESP32-C3** hardware. The Arduino firmware and CI use the C3 target; see [firmware status](../firmware/README.md). The product direction uses local records and offline assistance. Legacy online code remains in the repository and is not removed by this documentation update.
+The current product is **AeroEase for Android**, with **ESP32-C3** hardware. The Arduino firmware and CI use the C3 target; see [firmware status](../firmware/README.md). Records and assistant responses are processed locally. Cloud providers, API configuration, and the experimental gateway have been removed.
 
 ## Development references
 
@@ -17,7 +17,6 @@ The following documents capture earlier decisions and may describe features outs
 - [Model access](assistant-model-access.md)
 - [Xiaozhi official cloud](xiaozhi-official-cloud.md)
 - [Xiaozhi developer handoff](xiaozhi-developer-handoff.md)
-- [Gateway experiment](../server/assistant-gateway/README.md)
 - [Development plan](development-plan.md)
 - [Continuation task](ai-continuation-task.md)
 - [iOS readiness](ios-readiness.md)

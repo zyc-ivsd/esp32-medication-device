@@ -25,18 +25,68 @@ void main() {
     calls = [];
     messenger.setMockMethodCallHandler(channel, (call) async {
       calls.add(call.method);
+      if (call.method == 'getVoices') {
+        return [
+          {'name': 'offline-en', 'locale': 'en-US', 'network_required': '0'},
+        ];
+      }
       return 1;
     });
   });
 
   tearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
-  for (final refused in ['setLanguage', 'setSpeechRate', 'setPitch', 'speak']) {
+  for (final voices in [
+    <Map<String, String>>[],
+    [
+      {'name': 'network-en', 'locale': 'en-US', 'network_required': '1'},
+    ],
+    [
+      {'name': 'unknown-en', 'locale': 'en-US'},
+    ],
+  ]) {
+    test(
+      'never speaks when no explicitly offline English voice is available: $voices',
+      () async {
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          calls.add(call.method);
+          return call.method == 'getVoices' ? voices : 1;
+        });
+        final speaker = SystemTtsSpeaker();
+        try {
+          await expectLater(
+            speaker.speak('Saved record summary'),
+            throwsA(isA<StateError>()),
+          );
+          expect(calls, isNot(contains('speak')));
+        } finally {
+          await speaker.dispose();
+        }
+      },
+    );
+  }
+
+  for (final refused in [
+    'setLanguage',
+    'setVoice',
+    'setSpeechRate',
+    'setPitch',
+    'speak',
+  ]) {
     test(
       'refused $refused reports failure without waiting for a callback',
       () async {
         messenger.setMockMethodCallHandler(channel, (call) async {
           calls.add(call.method);
+          if (call.method == 'getVoices') {
+            return [
+              {
+                'name': 'offline-en',
+                'locale': 'en-US',
+                'network_required': '0',
+              },
+            ];
+          }
           return call.method == refused ? 0 : 1;
         });
         final speaker = SystemTtsSpeaker();
@@ -115,6 +165,11 @@ void main() {
     final language = Completer<int>();
     messenger.setMockMethodCallHandler(channel, (call) async {
       calls.add(call.method);
+      if (call.method == 'getVoices') {
+        return [
+          {'name': 'offline-en', 'locale': 'en-US', 'network_required': '0'},
+        ];
+      }
       return call.method == 'setLanguage' ? language.future : 1;
     });
     final speaker = SystemTtsSpeaker(
@@ -136,6 +191,11 @@ void main() {
       final pendingStop = Completer<int>();
       messenger.setMockMethodCallHandler(channel, (call) async {
         calls.add(call.method);
+        if (call.method == 'getVoices') {
+          return [
+            {'name': 'offline-en', 'locale': 'en-US', 'network_required': '0'},
+          ];
+        }
         return call.method == 'stop' ? pendingStop.future : 1;
       });
       final speaker = SystemTtsSpeaker(
@@ -157,6 +217,11 @@ void main() {
       var languageCalls = 0;
       messenger.setMockMethodCallHandler(channel, (call) async {
         calls.add(call.method);
+        if (call.method == 'getVoices') {
+          return [
+            {'name': 'offline-en', 'locale': 'en-US', 'network_required': '0'},
+          ];
+        }
         if (call.method == 'setLanguage' && languageCalls++ == 0) {
           return oldLanguage.future;
         }

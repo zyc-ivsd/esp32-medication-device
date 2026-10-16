@@ -1,4 +1,4 @@
-# AeroEase Android · 0.4.1+7
+# AeroEase Android · 0.4.2+8
 
 English-language medication diary built with Flutter / Dart, with a lavender and peach interface. Android is the delivery target. There is no runtime demonstration dataset.
 
@@ -28,9 +28,9 @@ In-place updates require the same application ID (`org.igem.medication.medicatio
 
 **Local** uses fixed rules, not a language model. It explains counts, synchronization, data quality and app functions offline. English quick questions and answers are provided, while legacy Chinese query matching remains supported.
 
-The product direction is offline-only assistance. Legacy online providers and API settings remain in this checkout, but are outside that direction. They must be removed or disabled in code before claiming that the shipped app cannot send questions or summaries to a model service. The retained [gateway](../server/assistant-gateway/README.md) is historical and is not needed for local rules.
+Cloud providers, API configuration, history-upload options, credential-storage dependencies, and the experimental gateway have been removed. Saved chats remain on the phone; older model answers are explicitly labeled as archived. Previously stored credentials are no longer read or used; this update does not claim to erase credentials left by older installations. Release builds do not request Android INTERNET permission. Debug/profile builds retain network permission for Flutter development tools.
 
-English read-aloud uses Android TTS (`en-US`) with a compatible installed offline voice. The app does not record speech or control the hardware. Records do not establish adherence, and the assistant does not prescribe or adjust medication.
+English read-aloud uses Android TTS (`en-US`) with an installed voice marked as not requiring a network connection. If no such English voice is available, read-aloud fails without falling back to a network voice. The app does not record speech or control the hardware. Records do not establish adherence, and the assistant does not prescribe or adjust medication.
 
 ## Develop and verify
 
@@ -41,8 +41,8 @@ cd mobile_app
 flutter pub get --enforce-lockfile
 flutter analyze
 flutter test
-flutter build apk --debug
-adb install -r build/app/outputs/flutter-apk/app-debug.apk
+flutter build apk --release
+adb install -r build/app/outputs/flutter-apk/app-release.apk
 ```
 
 Static analysis must report zero issues. Timestamp tests cover UTC hex validation, duplicate/conflicting files, same-second entries, schema-v1 migration, backfill beyond 100 rows, failure before ACK and completion only after DONE. Widget tests verify English diary dates, counts and original evidence.
@@ -55,6 +55,6 @@ For optional UI previews, set `PARCEL_PREVIEW_OUTPUT` to an output folder and `P
 | `lib/database/`, `lib/models/` | Durable storage, migration, deduplication, calendar validation and daily summaries |
 | `lib/pages/`, `lib/services/` | Overview, history, details, filters and CSV |
 | `lib/theme/` | Shared lavender/peach theme |
-| `lib/assistant/` | English UI, local rules, reference retrieval, model API and TTS |
+| `lib/assistant/` | English UI, local rules, local chat history and offline-voice TTS |
 
 Automated tests cannot validate phone permissions, radio behavior, physical button debounce or hardware timekeeping. Debug APKs are for internal testing. Release currently also uses debug signing; establish a team-owned release key before public distribution. See [remaining work](../docs/android-roadmap.md).

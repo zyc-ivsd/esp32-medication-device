@@ -25,9 +25,9 @@ abstract class AssistantSpeaker {
   Future<void> dispose();
 }
 
-/// 使用 Android 系统 TTS。能否离线取决于手机安装的语音引擎和语音包。
+/// Uses an installed English Android TTS voice marked as not requiring network.
 ///
-/// 朗读不使用助手的凭据。初始化或朗读失败时 [speak]
+/// There is no fallback to a network-required voice. On failure, [speak]
 /// 返回的 Future 以错误完成，由调用方决定怎么提示用户。
 class SystemTtsSpeaker implements AssistantSpeaker {
   SystemTtsSpeaker({
@@ -102,6 +102,32 @@ class SystemTtsSpeaker implements AssistantSpeaker {
     if (language != 1) {
       throw StateError('An English text-to-speech voice is unavailable');
     }
+    final voices = await _tts.getVoices;
+    if (!identical(_utterance, done)) return;
+    Map<String, String>? offlineVoice;
+    if (voices is List) {
+      for (final voice in voices) {
+        if (voice is! Map) continue;
+        final locale = voice['locale'];
+        final name = voice['name'];
+        final requiresNetwork = voice['network_required'];
+        if (locale is String &&
+            name is String &&
+            locale.toLowerCase().replaceAll('_', '-').startsWith('en-') &&
+            (requiresNetwork == '0' ||
+                requiresNetwork == false ||
+                requiresNetwork == 'false')) {
+          offlineVoice = {'name': name, 'locale': locale};
+          if (locale.toLowerCase().replaceAll('_', '-') == 'en-us') break;
+        }
+      }
+    }
+    if (offlineVoice == null) {
+      throw StateError('No offline English voice is available');
+    }
+    final selected = await _tts.setVoice(offlineVoice);
+    if (!identical(_utterance, done)) return;
+    if (selected != 1) throw StateError('Offline voice could not be selected');
     final rate = await _tts.setSpeechRate(_rate);
     if (!identical(_utterance, done)) return;
     if (rate != 1) throw StateError('TTS speed could not be set');

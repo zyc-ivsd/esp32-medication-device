@@ -1,5 +1,7 @@
 # 小智官方云接入：可行性与下一步
 
+> Historical design note: cloud AI, model API configuration, and the gateway were removed in AeroEase 0.4.2. The instructions below do not apply to the current offline app.
+
 > **2026-09-30 更新：小智路线（官方云 + 自建智控台）已整体放弃，本文仅作历史资料。** 在线助手的现行路线是 App 直连用户自己的模型（BYOK），API Key 只能是用户自己的、绝不出手机，见 [`assistant-model-access.md`](assistant-model-access.md)。下面的“可行性”“决策任务”“实施顺序”不再排期。
 
 ## 先看结论：三种“用小智”的方式
@@ -7,7 +9,7 @@
 | 方式 | App 能用吗 | 说明 |
 |---|---|---|
 | **xiaozhi.me 官方云** | ❌ **不能** | 设备激活要求用 ESP32 eFuse 里的 HMAC KEY0 对服务器 challenge 签名，手机算不出来；官方也没有给第三方 App 的聊天 API。详见下文 |
-| **自建 `xinnan-tech/xiaozhi-esp32-server` + 智控台** | ✅ **可以，仓库已支持** | 网关 `GATEWAY_MODE=xiaozhi` 走它的文字路径；**大模型、知识库/RAG、角色设定都在智控台里配**，步骤见 [`server/assistant-gateway/README.md`](../server/assistant-gateway/README.md) |
+| **自建 `xinnan-tech/xiaozhi-esp32-server` + 智控台** | ✅ **可以，仓库已支持** | 网关 `GATEWAY_MODE=xiaozhi` 走它的文字路径；**大模型、知识库/RAG、角色设定都在智控台里配**，步骤见 [`server/assistant-gateway/README.md`](https://github.com/zyc-ivsd/esp32-medication-device/blob/aeb1fc4/server/assistant-gateway/README.md) |
 | 把 xiaozhi.me 上配好的模型/知识库拿来给自建服务端用 | ❌ 不能 | 配置存放在官方服务器上，两边不互通 |
 
 **所以“在 xiaozhi.me 里配大模型和 RAG 然后给 App 用”做不到；但“在自建智控台里配，然后给 App 用”可以，而且已经实现。**

@@ -1,5 +1,7 @@
 # 本地专家 / 联网大模型：App 侧的模型接入与边界
 
+> Historical design note: cloud AI, model API configuration, and the gateway were removed in AeroEase 0.4.2. The instructions below do not apply to the current offline app.
+
 本文记录“本地规则助手 ⇄ 联网大模型”这条链路的架构、**API Key 的边界**，以及 RAG、朗读（TTS）的落地方式。
 
 本地助手是确定性的规则程序，读取手机中的记录统计，不包含模型权重或手机端大模型推理。在线助手才调用用户配置的模型服务；填写的模型名称由请求原样传给该服务，App 不会自行替换它。
@@ -64,7 +66,7 @@ App 0.3.1 将回答正文（UTF-8 256 KiB）、整段 JSON（2 MiB）、SSE 传�
 | 自建小智 + 智控台 RAGFlow | 小智服务端 | 服务端固定的团队 Key | 不适用 | **废弃** |
 | **设备端关键词检索** | 手机内 | 用户的 | ❌ 不经过 | **已实现** |
 
-实现是 [`assistant_knowledge.dart`](../mobile_app/lib/assistant/assistant_knowledge.dart)：语料是二十几篇自包含片段（设备边界、错误码、时间/同步、维护、隐私、术语、App 功能），用关键词匹配打分取 top-3，**没有 embedding / 向量模型**——这个小语料用不上，也能保持“零新依赖、全离线”。检索命中时才往 user 消息里加一个 `references` 字段；没命中就还是只发“问题 + 摘要”。
+实现是 [`assistant_knowledge.dart`](https://github.com/zyc-ivsd/esp32-medication-device/blob/aeb1fc4/mobile_app/lib/assistant/assistant_knowledge.dart)：语料是二十几篇自包含片段（设备边界、错误码、时间/同步、维护、隐私、术语、App 功能），用关键词匹配打分取 top-3，**没有 embedding / 向量模型**——这个小语料用不上，也能保持“零新依赖、全离线”。检索命中时才往 user 消息里加一个 `references` 字段；没命中就还是只发“问题 + 摘要”。
 
 匹配在归一化（小写化、去掉空白与中英文标点）之后做，分三档：**同义组**（「服用」也能命中关键词是「吃药」的篇章）、**字面子串**、以及够长关键词的**字符二元组近形匹配**（容忍一两个错别字，例如「同步失贝」仍能带回「同步失败怎么办」），命中标题再额外加分。这样“近7天 / 近 7 天”“BLE / ble”“同步失败 / 同步失贝”都能命中，而不需要为每个变体写死一份关键词。
 
@@ -80,7 +82,7 @@ App 0.3.1 将回答正文（UTF-8 256 KiB）、整段 JSON（2 MiB）、SSE 传�
 
 **表单**（`assistant_settings_dialog.dart`）只负责收集字段，返回一条档案，不接触存储；落盘全部由管理页统一完成。两条刻意的设计：
 
-- **保存即落盘，删除即清除。** 点「保存」就写入 [`flutter_secure_storage`](../mobile_app/lib/assistant/assistant_credentials.dart)（Android Keystore / iOS Keychain），**绝不用 `shared_preferences` 明文存储**；控制权交给「删除」——这也是本页唯一需要用户主动记住的隐私操作。
+- **保存即落盘，删除即清除。** 点「保存」就写入 [`flutter_secure_storage`](https://github.com/zyc-ivsd/esp32-medication-device/blob/aeb1fc4/mobile_app/lib/assistant/assistant_credentials.dart)（Android Keystore / iOS Keychain），**绝不用 `shared_preferences` 明文存储**；控制权交给「删除」——这也是本页唯一需要用户主动记住的隐私操作。
 - **写不进去就报错。** 安全存储写入失败时管理页显示错误并且**不改动界面**，不会让用户以为「已经保存了」或「已经删掉了」——两种误解都有隐私代价。存储整体读不出来（旧格式、解密失败、平台通道不可用）时按「没有配置过」处理，页面照常打开。
 
 存储格式是 `{version: 2, selected_id, profiles: [...]}`，单键 JSON；读到上一版的单条旧档会自动迁成一条档案（只读时迁移，下次保存才写成 v2）。
@@ -91,7 +93,7 @@ App 0.3.1 将回答正文（UTF-8 256 KiB）、整段 JSON（2 MiB）、SSE 传�
 
 ## 六、在线回答的数字回验
 
-在线模型最危险也最容易被忽略的失败不是答得难听，而是**编造一个不存在的次数**（「本周记录了 12 次」而摘要是 8 次）。数字可精确校验，所以 [`answer_verification.dart`](../mobile_app/lib/assistant/answer_verification.dart) 在拿到在线回答后做一次确定性回验：
+在线模型最危险也最容易被忽略的失败不是答得难听，而是**编造一个不存在的次数**（「本周记录了 12 次」而摘要是 8 次）。数字可精确校验，所以 [`answer_verification.dart`](https://github.com/zyc-ivsd/esp32-medication-device/blob/aeb1fc4/mobile_app/lib/assistant/answer_verification.dart) 在拿到在线回答后做一次确定性回验：
 
 - 先摘掉日期与时间串（否则「最后同步于 2026-09-23 08:00」会被误判）；
 - 再只抽取**统计口径里的数字**（后面紧跟 次/条/天/日 才当计数候选，`statClaimsInText`），逐个检查是否属于「摘要有依据的数字」；
@@ -117,7 +119,7 @@ App 0.3.1 将回答正文（UTF-8 256 KiB）、整段 JSON（2 MiB）、SSE 传�
 【来源】AI知识        ← 通用科普
 ```
 
-[`answer_verification.dart`](../mobile_app/lib/assistant/answer_verification.dart) 的 `parseRemoteAnswer` 解析这个标记：只在**回答最末尾**匹配（容忍全角空格与全角冒号），解析后把标记行本身删掉，来源由 App 自己用界面元素表达，不给用户看方括号。没有标记、或标记出现在中间，就**原样返回、按「在线回答」处理**——绝不因为找不到标记而截断回答。
+[`answer_verification.dart`](https://github.com/zyc-ivsd/esp32-medication-device/blob/aeb1fc4/mobile_app/lib/assistant/answer_verification.dart) 的 `parseRemoteAnswer` 解析这个标记：只在**回答最末尾**匹配（容忍全角空格与全角冒号），解析后把标记行本身删掉，来源由 App 自己用界面元素表达，不给用户看方括号。没有标记、或标记出现在中间，就**原样返回、按「在线回答」处理**——绝不因为找不到标记而截断回答。
 
 标记为 `AI知识` 时 App 在**回答最前面**补一句固定说明（浅色斜体渲染，见 7.6）：
 
@@ -167,7 +169,7 @@ App 0.3.1 将回答正文（UTF-8 256 KiB）、整段 JSON（2 MiB）、SSE 传�
 
 **多轮上下文默认关。** 「更多」→「带上本轮对话」开启后，只有直连自己的模型时，才把本轮更早的问答作为 chat message 插在 system 与当前问题之间，帮助理解追问；仍不发送原始记录、设备标识，也不会把历史发给团队服务器（网关已废弃、本来就不支持多轮）。开关状态和朗读偏好一起存在 `shared_preferences`，隐私横幅与切到在线的分隔提示会随开关如实说明“到底发出去什么”。
 
-**发送前按相关性裁剪，而不是“一律带最近 8 条”。** [`history_relevance.dart`](../mobile_app/lib/assistant/history_relevance.dart) 的 `relevantTurns` 决定带哪些历史：不超过 8 条时原样带上、顺序不变；超过时**始终保留最近一回合**（“还有呢”这种零重叠追问才不会断），再带上与当前问题共享字符二元组的早期问答，合计最多 8 条。这样既不会因为无关历史把整段聊天都发出去（省 token、也少泄露），也不会丢掉真正相关的上文。
+**发送前按相关性裁剪，而不是“一律带最近 8 条”。** [`history_relevance.dart`](https://github.com/zyc-ivsd/esp32-medication-device/blob/aeb1fc4/mobile_app/lib/assistant/history_relevance.dart) 的 `relevantTurns` 决定带哪些历史：不超过 8 条时原样带上、顺序不变；超过时**始终保留最近一回合**（“还有呢”这种零重叠追问才不会断），再带上与当前问题共享字符二元组的早期问答，合计最多 8 条。这样既不会因为无关历史把整段聊天都发出去（省 token、也少泄露），也不会丢掉真正相关的上文。
 
 多轮说明是一段**独立常量** `assistantHistoryNote`，只在请求时拼到 system 提示词之后，**不并入** `assistantSystemPrompt`——因为那份要与 `gateway.py` 的 `SYSTEM_PROMPT` 逐字同步，而网关不支持多轮；拼进去会破坏 `test_prompt_sync.py` 的逐字比对。
 
@@ -201,7 +203,7 @@ App 0.3.1 将回答正文（UTF-8 256 KiB）、整段 JSON（2 MiB）、SSE 传�
 ## 相关
 
 - 本地规则集与边界：[`assistant-local-rules.md`](assistant-local-rules.md)
-- 网关（已废弃，仅作历史）：[`../server/assistant-gateway/README.md`](../server/assistant-gateway/README.md)
+- 网关（已废弃，仅作历史）：[`../server/assistant-gateway/README.md`](https://github.com/zyc-ivsd/esp32-medication-device/blob/aeb1fc4/server/assistant-gateway/README.md)
 - 小智官方云为何不可用（已废弃）：[`xiaozhi-official-cloud.md`](xiaozhi-official-cloud.md)
 - 助手需要的数据：[`assistant-data-requirements.md`](assistant-data-requirements.md)
-- 助手知识库内容与收录原则：[`../server/assistant-gateway/knowledge/README.md`](../server/assistant-gateway/knowledge/README.md)
+- 助手知识库内容与收录原则：[`../server/assistant-gateway/knowledge/README.md`](https://github.com/zyc-ivsd/esp32-medication-device/blob/aeb1fc4/server/assistant-gateway/knowledge/README.md)
