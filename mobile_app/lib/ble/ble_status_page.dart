@@ -15,10 +15,6 @@ class BleConnectionCard extends StatelessWidget {
       child: ListTile(
         leading: const Icon(Icons.bluetooth),
         title: Text('Device connection · ${service.statusLabel}'),
-        subtitle: Text(
-          '${service.savedRecords.length} recent device timestamps\nConnect, sync or inspect saved records',
-        ),
-        isThreeLine: true,
         trailing: const Icon(Icons.chevron_right),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute<void>(

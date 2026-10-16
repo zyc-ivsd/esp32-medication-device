@@ -51,3 +51,6 @@ Thumbs.db
 *.elf
 *.map
 *.log
+
+# Local UI presentation prototypes (not part of the Flutter app)
+mobile_app/presentation/
