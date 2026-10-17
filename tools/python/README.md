@@ -1,10 +1,8 @@
-# Python helper tools
+# Desktop Python dependencies
 
-This directory is reserved for desktop development utilities. Python is not a runtime dependency of the Android app.
+`requirements.txt` lists Python dependencies for desktop development and analysis. The Android app runs independently of this environment.
 
-Planned uses include BLE scanning and notification debugging, checksum and acknowledgment tests, test-fixture generation, and CSV/JSON analysis. These plans do not imply that each utility is implemented. Test fixtures are separate from the app's user-facing data; there is no runtime demonstration dataset.
-
-From this directory, create and activate an environment before installing dependencies:
+From this directory, create and activate a virtual environment, then install the dependency manifest:
 
 ```sh
 python -m venv .venv

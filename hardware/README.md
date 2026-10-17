@@ -1,6 +1,6 @@
 # Hardware — ESP32-C3
 
-This directory contains the hardware design assets for the parcel aerosol delivery project. AeroEase is the companion app name; existing design filenames retain the spelling used by their authors.
+This directory contains the hardware design assets for the parcel aerosol delivery project. AeroEase is the companion app.
 
 | Asset | File |
 |---|---|
@@ -11,4 +11,4 @@ This directory contains the hardware design assets for the parcel aerosol delive
 
 The project uses **ESP32-C3**, with Arduino firmware under `firmware/esp32-c3/`. Confirm the exact module and board revision against the schematic before wiring or flashing.
 
-For a reproducible hardware handoff, record the board revision, fitted components, pin assignments, power requirements, programming connections, and measured behavior. Attach test evidence to the corresponding board revision.
+For assembly and integration, use the board revision, fitted components, pin assignments, power requirements, and programming connections specified for the board. Associate measurements with the corresponding board revision.

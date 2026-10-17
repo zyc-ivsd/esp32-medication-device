@@ -4,7 +4,7 @@ This directory contains the project's **ESP32-C3** Arduino firmware and build in
 
 ## Setup
 
-The sketch entry point is `main/main.ino`. Use the complete firmware tree from `codex/android-xiaozhi-prep`, not an isolated copy of the sketch. The prototype board uses a button between GPIO4 and GND with an input pull-up. Serial output uses 115200 baud.
+The sketch entry point is `main/main.ino`. Build the sketch together with the component files in this directory. The prototype board uses a button between GPIO4 and GND with an input pull-up. Serial output uses 115200 baud.
 
 Components cover BLE synchronization, SPIFFS file storage and archiving, UTC clock commands, and sleep/wake handling. SPIFFS is not automatically formatted on a mount failure.
 
@@ -38,6 +38,6 @@ This compiles for the project's ESP32-C3 target. See the [firmware overview](../
 
 ## Sleep and verification
 
-Detach the button interrupt **before** configuring the GPIO light-sleep wake source. The opposite order caused the recorded C3 wake failure. [Isolated wake tests](../../ftest/README.md) preserve the diagnostic procedure and earlier results.
+The sleep-entry sequence detaches the button interrupt before configuring the GPIO light-sleep wake source. [Isolated wake tests](../../ftest/README.md) compare the configuration sequences and report wake causes.
 
-Host tests in `tests/` cover clock commands, archive planning, and BLE subscription behavior. CI does not establish physical-board wake or radio reliability. Also consult the [protocol](../../protocol/prototype-text-v01.md) and [integration notes](../../docs/member-ab-integration.md).
+Host tests in `tests/` cover clock commands, archive planning, and BLE subscription behavior. Physical-board checks assess wake behavior and BLE connectivity. See the [protocol](../../protocol/prototype-text-v01.md) for message definitions.

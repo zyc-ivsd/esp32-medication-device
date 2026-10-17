@@ -1,54 +1,57 @@
 # parcel — AeroEase
 
-AeroEase is the Android companion app for parcel's portable aerosol delivery project. It transfers device timestamps over Bluetooth, stores them on the phone, and presents a medication-use diary with daily counts, history, CSV export, and an offline rule-based assistant. The interface is English with a lavender and peach palette.
+AeroEase is the Android companion app for parcel's portable aerosol delivery device. It synchronizes ESP32-C3 timestamps over Bluetooth and presents a medication-use diary with daily summaries, record history, CSV export, and an offline assistant. The English interface uses a lavender and peach palette.
 
-## Hardware: ESP32-C3
+## Features
 
-The project uses **ESP32-C3**. The Arduino firmware is maintained under `firmware/esp32-c3/`, and firmware CI builds the `esp32:esp32:esp32c3` target. AeroEase communicates with the device over BLE.
+- Bluetooth connection, device clock calibration, and timestamp synchronization.
+- Daily and seven-day activity summaries with interactive record views.
+- Date-filtered history, individual record details, and CSV export.
+- Offline explanations of saved records and app functions.
+- Local storage with duplicate detection and acknowledgment after durable saves.
 
-## User workflow
+Each valid button-generated timestamp represents one medication-use diary entry. It records a device action; it does not measure the delivered dose or confirm inhalation.
 
-1. Open AeroEase on an Android phone and connect through the device page.
-2. Synchronize button-generated timestamps over BLE.
-3. Review medication-use times and daily counts in Overview and History.
-4. Export selected entries as CSV or ask the local assistant about the stored counts.
+## User guide
 
-The team defines one valid button-generated timestamp as one medication-use entry. This is a diary convention, not a measurement of delivered dose or proof of inhalation. Replaying the same device/file identity does not add another entry.
+See the [Software page on the UCAS-China Wiki](https://2026.igem.wiki/ucas-china/software) for the user-facing project description and usage guidance. AeroEase requires **Android 7.0 / API 24 or later**, Bluetooth, and the matching ESP32-C3 device firmware.
 
 ## Data and privacy
 
-Original device text is retained locally, and valid timestamps populate the diary. A record is acknowledged only after its required local writes succeed. Incomplete synchronization can be retried; conflicting content under an existing identity is rejected. Unknown or future timestamps remain inspectable but do not contribute to current daily counts.
+Original device text and diary entries are stored locally. Records are identified by device and file, so repeated synchronization does not increase the count. Conflicting content under an existing identity is rejected. Unknown and future timestamps remain available for inspection and export while being excluded from current daily counts.
 
-The assistant works offline with fixed local rules, not a language model. Cloud providers, API settings, credential-storage dependencies, and the experimental gateway have been removed. There is no runtime demonstration dataset. Release builds do not request Android INTERNET permission; debug/profile builds retain it for Flutter development tools.
+The assistant uses fixed local rules and processes questions and record summaries on the phone. It requires no account or model API key. English read-aloud uses an installed Android voice marked as not requiring a network connection.
 
-## Development
+Release APKs do not request Android INTERNET permission. Debug and profile builds include network permission for Flutter development tools. CSV sharing is initiated by the user.
 
-Continue development on **`codex/android-xiaozhi-prep`**. The historical branch name does not imply a current Xiaozhi integration requirement.
+## Build and test
+
+App version: **AeroEase 0.4.2+8**. Toolchain: **Flutter 3.47.4**, **Dart 3.13.3**, **JDK 17**, and **Android SDK 36**. Dependencies are pinned in `mobile_app/pubspec.lock`.
 
 ```sh
-git clone https://github.com/zyc-ivsd/esp32-medication-device.git
-cd esp32-medication-device
-git checkout codex/android-xiaozhi-prep
-cd mobile_app
+git clone --branch codex/android-xiaozhi-prep https://github.com/zyc-ivsd/esp32-medication-device.git
+cd esp32-medication-device/mobile_app
 flutter pub get --enforce-lockfile
 flutter analyze
-flutter test
+flutter test --concurrency=1
 flutter build apk --release
 ```
 
-The Android app is **AeroEase 0.4.2+8**. The development toolchain uses Flutter 3.47.4, Dart 3.13.3, JDK 17, and Android SDK 36. Android 7.0 / API 24 or later is required. Debug APKs are intended for testing; retain the application ID and signing certificate for in-place updates that preserve local data.
+The APK is generated at `mobile_app/build/app/outputs/flutter-apk/app-release.apk`, relative to the repository root. See the [Android README](mobile_app/README.md) for application structure and signing requirements, and the [firmware README](firmware/esp32-c3/README.md) for the Arduino build.
 
 ## Repository guide
 
 | Directory | Contents |
 |---|---|
 | [mobile_app](mobile_app/README.md) | Flutter Android app and tests |
-| [firmware](firmware/README.md) | ESP32-C3 prototype firmware |
+| [firmware](firmware/README.md) | ESP32-C3 Arduino firmware |
 | [hardware](hardware/README.md) | PCB, schematic, Gerber, and BOM assets |
-| [protocol](protocol/README.md) | BLE and record-format documentation |
-| [ftest](ftest/README.md) | Isolated firmware diagnostic sketches |
-| [docs](docs/README.md) | Development notes and historical handoffs |
-| [tools/python](tools/python/README.md) | Desktop helper-tool area |
-| [.github/workflows](.github/workflows/README.md) | Automated checks |
+| [protocol](protocol/README.md) | BLE synchronization and record formats |
+| [ftest](ftest/README.md) | GPIO light-sleep diagnostic program |
+| [docs](docs/README.md) | Software and integration references |
+| [tools/python](tools/python/README.md) | Desktop Python dependency manifest |
+| [.github/workflows](.github/workflows/README.md) | Automated checks and build artifacts |
 
-Android is the current delivery platform. Retained iOS files and earlier architecture notes are historical material. Source code and the current build configuration take precedence over older plans. See [LICENSE](LICENSE) for licensing terms.
+## License
+
+Project source code is distributed under the [MIT License](LICENSE). Third-party dependencies retain their respective licenses.

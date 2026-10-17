@@ -17,40 +17,18 @@ Select a variant by pressing the button during the six-second selection window, 
 
 A GPIO wake result is expected for a successful button wake. An undefined or different cause needs investigation; no output alone is not sufficient to diagnose the board because USB serial behavior can also change during sleep. Light-sleep return resumes execution rather than restarting the sketch.
 
-## Recorded C3 results — October 6, 2026
+## Wake-source configuration
 
-The existing hardware test notes report that A, B, and C woke successfully, while D failed in two trials. Attaching/detaching the interrupt after arming GPIO wake invalidated the intended wake configuration in that tested setup, despite successful wake-configuration return codes.
-
-The firmware fix moves `detachInterrupt()` before `configureLightSleepWakeup()`. The earlier notes report a successful sequence of wake, record creation, software restart, clock calibration, synchronization, and archiving. These results describe the recorded C3 test session; they are not a new validation run.
+The firmware configures the GPIO wake source after detaching the runtime button interrupt. Variants A–D compare the ordering of wake configuration, interrupt attachment/detachment, and input pull-up configuration. The serial report identifies the selected variant, sleep return code, wake cause, and counters.
 
 ## Reference source
 
-
 ```cpp
 /*
- * Light-sleep wake variant test -- ESP32-C3, serial only.
- *
- * The previous test (sleep with nothing but gpio_wakeup_enable) WOKE CORRECTLY:
- * WAKE_CAUSE=7. So the wake mechanism itself works. The production firmware
- * instead does extra work before sleeping and does NOT wake. This sketch isolates
- * which of those extra steps breaks it, without reflashing between runs.
- *
- * Pick a variant by the number of GPIO4 presses seen during the 6-second
- * selection window after boot:
- *
- *   1 press  -> A: nothing (control, known to work)
- *   2 presses-> B: attachInterrupt + detachInterrupt        (main suspect)
- *   3 presses-> C: attachInterrupt + detachInterrupt + pinMode re-assert
- *   4 presses-> D: attachInterrupt + detachInterrupt + GPIO wake armed FIRST
- *   0 presses-> defaults to A
- *
- * Then press once more to run the 5s countdown and sleep. After sleeping, press
- * to wake. The wake result is printed and the sketch returns to selection so the
- * next variant can be run without reflashing.
- *
- * No LED, no BLE, no SPIFFS. Only Serial at 115200.
- *
- * Button: GPIO4 -- button -- GND. Released = HIGH (pull-up), pressed = LOW.
+ * ESP32-C3 light-sleep GPIO wake configuration test.
+ * Select variants A-D by the number of button presses during the selection window.
+ * Press once more to start the countdown, then press to wake the board.
+ * Serial: 115200 baud. Button: GPIO4 -- button -- GND, with input pull-up.
  */
 
 #include <esp_sleep.h>

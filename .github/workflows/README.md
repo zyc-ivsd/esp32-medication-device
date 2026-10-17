@@ -1,9 +1,13 @@
 # Continuous integration
 
-- `android-check.yml` runs static analysis, Flutter tests, and an internal release APK build. It also verifies that the packaged APK does not request INTERNET permission. It pins the Flutter 3.47.4 Linux archive checksum.
-- `flutter analyze` treats warnings and informational diagnostics as failures. The required result is zero issues.
-- Enable GitHub Actions in a fork. Workflows must be present on the default branch for their manual-dispatch controls to be available.
-- `ios-check.yml` is retained for historical, manually triggered checks. Android is the current delivery platform.
-- `firmware-check.yml` uses Arduino CLI 1.3.1 and Arduino-ESP32 3.3.11, runs firmware checks, and builds the **ESP32-C3** target. It uploads artifacts and logs without flashing hardware.
+| Workflow | Checks and outputs |
+|---|---|
+| `android-check.yml` | Static analysis, Flutter tests, internal release APK, and packaged INTERNET-permission check |
+| `firmware-check.yml` | Clock-command and BLE-subscription host tests, ESP32-C3 firmware build, and validation logs |
+| `ios-check.yml` | Manually triggered platform checks |
 
-Internal release builds currently use debug signing. Signatures can differ between CI and local builds, preventing an in-place update. Public distribution requires a maintained release-signing process. Automated checks do not replace phone/BLE, GPIO wake, or physical-device testing.
+The Android workflow pins the Flutter 3.47.4 Linux archive checksum. `flutter analyze` requires zero issues, including warnings and informational diagnostics. The firmware workflow uses Arduino CLI 1.3.1 and Arduino-ESP32 3.3.11 with the `esp32:esp32:esp32c3` target.
+
+Enable GitHub Actions in a fork to execute the workflows. Manual-dispatch controls require the workflow definition on the default branch.
+
+Internal release APKs use debug signing. In-place updates require matching signing certificates; distribution builds require a team-managed release key. Firmware artifacts are compiled binaries and are not automatically flashed. Physical-device checks assess BLE, GPIO wake, button behavior, and timekeeping.

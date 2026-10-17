@@ -1,24 +1,15 @@
 # Documentation guide
 
-The current product is **AeroEase for Android**, with **ESP32-C3** hardware. The Arduino firmware and CI use the C3 target; see [firmware status](../firmware/README.md). Records and assistant responses are processed locally. Cloud providers, API configuration, and the experimental gateway have been removed.
+AeroEase is the Android companion app for the ESP32-C3 device. The app stores device records locally and provides offline record review and assistance.
 
-## Development references
+| Reference | Purpose |
+|---|---|
+| [Project README](../README.md) | Features, requirements, repository structure, and license |
+| [Android app](../mobile_app/README.md) | Data behavior, build commands, and application modules |
+| [ESP32-C3 firmware](../firmware/esp32-c3/README.md) | Wiring, Arduino build, BLE synchronization, and clock calibration |
+| [Device protocol](../protocol/README.md) | Message formats and synchronization contract |
+| [Hardware assets](../hardware/README.md) | Schematic, PCB, manufacturing files, and BOM |
+| [Automated checks](../.github/workflows/README.md) | Analysis, tests, APK generation, and firmware builds |
+| [Wiki Software page](https://2026.igem.wiki/ucas-china/software) | User-facing project and usage information |
 
-- [Android app](../mobile_app/README.md): installation, data behavior, and build commands.
-- [Android roadmap](android-roadmap.md): development planning; check dated items against current code.
-- [Member integration](member-ab-integration.md): app/firmware integration notes.
-- [Member A handoff](member-a-handoff.md) and [validation](member-a-validation.md): earlier implementation evidence.
-- [Local assistant rules](assistant-local-rules.md) and [data requirements](assistant-data-requirements.md): assistant behavior and record inputs.
-
-## Historical plans
-
-The following documents capture earlier decisions and may describe features outside the current product scope:
-
-- [Model access](assistant-model-access.md)
-- [Xiaozhi official cloud](xiaozhi-official-cloud.md)
-- [Xiaozhi developer handoff](xiaozhi-developer-handoff.md)
-- [Development plan](development-plan.md)
-- [Continuation task](ai-continuation-task.md)
-- [iOS readiness](ios-readiness.md)
-
-Use the current implementation and build configuration to resolve discrepancies. Historical test results apply to their recorded board, software version, and conditions.
+The app and firmware implement the shared protocol together. Build configurations and source definitions specify the executable behavior; this guide links the corresponding documentation.
