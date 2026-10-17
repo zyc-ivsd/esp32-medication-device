@@ -59,6 +59,36 @@ void main() {
     expect(answer, contains('Calibrate'));
   });
 
+  test('问无效记录原因：说明是误触发或开关接触不良导致时间过近', () async {
+    for (final question in [
+      'Why are there invalid records?',
+      'What causes invalid records?',
+      'Invalid records why?',
+      'What is an invalid record?',
+      'Explain invalid records',
+      '为什么会有无效记录？',
+      '无效记录是怎么产生的？',
+      '无效记录为什么这么多',
+    ]) {
+      final answer = await ask(question);
+      expect(answer, contains('poor switch contact'), reason: question);
+      expect(answer, contains('too close together'), reason: question);
+      expect(
+        answer,
+        isNot(contains('Local uses fixed rules')),
+        reason: '「$question」落到了兜底，说明没有对应的规则分支',
+      );
+    }
+  });
+
+  test('问无效记录多少条时仍报次数，不返回原因说明', () async {
+    for (final question in ['Any invalid uses recently?', '今天有多少无效记录']) {
+      final answer = await ask(question);
+      expect(answer, contains('suspected invalid uses'), reason: question);
+      expect(answer, isNot(contains('poor switch contact')), reason: question);
+    }
+  });
+
   test('问总条数：给出总量与今日、近 7 天', () async {
     for (final question in ['How many records are saved?', '总共多少条', '总量是多少']) {
       final answer = await ask(question);

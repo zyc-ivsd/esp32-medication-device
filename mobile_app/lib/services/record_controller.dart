@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../database/record_repository.dart';
+import '../models/invalid_use_rule.dart';
 import '../models/medication_record.dart';
 import '../models/record_filter.dart';
 import '../models/record_summary.dart';
@@ -63,7 +64,9 @@ class RecordController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final data = await repo.readAll();
+      // Duplicate-press detection depends on the whole dataset, so it is
+      // derived on every read rather than frozen into stored records.
+      final data = applySuspectedInvalidUseRule(await repo.readAll());
       final lastSync = await repo.lastSyncAt();
       if (_disposed || revision != _revision) return;
       records = List.unmodifiable(data);

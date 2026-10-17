@@ -8,6 +8,7 @@ import 'package:medication_device_app/ble/prototype_protocol.dart';
 import 'package:medication_device_app/ble/prototype_store.dart';
 import 'package:medication_device_app/ble/prototype_sync.dart';
 import 'package:medication_device_app/database/sqlite_record_repository.dart';
+import 'package:medication_device_app/models/invalid_use_rule.dart';
 import 'package:medication_device_app/models/medication_record.dart';
 import 'package:medication_device_app/models/record_filter.dart';
 import 'package:medication_device_app/models/record_summary.dart';
@@ -54,30 +55,27 @@ Future<void> until(bool Function() condition) async {
 void main() {
   sqfliteFfiInit();
 
-  test(
-    'device timestamps accept only 16 hex UTC seconds in 2001-2099',
-    () {
-      for (final raw in [
-        'not-a-time',
-        '2026-10-04_08-00-00', // legacy calendar text is no longer valid
-        '00000000386d4380',    // 2000 placeholder is excluded
-        '00000000f4865700',    // beyond 2099
-        '386d4380',            // too short (legacy 8 hex)
-        '00000000386d43800',   // too long
-        '00000000386d438g',    // non-hex digit
-        '',
-      ]) {
-        expect(parseDeviceTimestamp(raw), isNull, reason: raw);
-      }
-      final leap = parseDeviceTimestamp(utcHex(DateTime(2024, 2, 29, 8)))!;
-      expect(leap.isUtc, isTrue);
-      final local = leap.toLocal();
-      expect([local.year, local.month, local.day, local.hour], [2024, 2, 29, 8]);
-    },
-  );
+  test('device timestamps accept only 16 hex UTC seconds in 2001-2099', () {
+    for (final raw in [
+      'not-a-time',
+      '2026-10-04_08-00-00', // legacy calendar text is no longer valid
+      '00000000386d4380', // 2000 placeholder is excluded
+      '00000000f4865700', // beyond 2099
+      '386d4380', // too short (legacy 8 hex)
+      '00000000386d43800', // too long
+      '00000000386d438g', // non-hex digit
+      '',
+    ]) {
+      expect(parseDeviceTimestamp(raw), isNull, reason: raw);
+    }
+    final leap = parseDeviceTimestamp(utcHex(DateTime(2024, 2, 29, 8)))!;
+    expect(leap.isUtc, isTrue);
+    final local = leap.toLocal();
+    expect([local.year, local.month, local.day, local.hour], [2024, 2, 29, 8]);
+  });
 
   test(
-    'unique files count once; same-second presses and different devices remain distinct',
+    'unique files persist; same-second duplicates are invalidated per device',
     () async {
       final repo = await open();
       addTearDown(repo.close);
@@ -97,9 +95,13 @@ void main() {
       await repo.saveDeviceTimestamp(timestamp(first.rawText, device: 'C3-B'));
       final records = await repo.readAll();
       expect(records, hasLength(3));
-      final summary = RecordSummary.calculate(records, now: _now);
-      expect(summary.todayCount, 3);
-      expect(summary.last7DaysCount, 3);
+      final effective = applySuspectedInvalidUseRule(records);
+      final summary = RecordSummary.calculate(effective, now: _now);
+      // The earlier of the two same-second presses on C3-A is invalid; the
+      // press from the other device stays a valid use.
+      expect(summary.todayCount, 2);
+      expect(summary.last7DaysCount, 2);
+      expect(summary.invalidEventCount, 1);
       expect(records.first.durationMs, isNull);
       expect(records.first.pressurePeakPa, isNull);
       expect(records.first.confidence, isNull);
@@ -118,7 +120,9 @@ void main() {
     () async {
       final repo = await open();
       addTearDown(repo.close);
-      await repo.saveDeviceTimestamp(timestamp(utcHex(DateTime(2026, 10, 4, 8))));
+      await repo.saveDeviceTimestamp(
+        timestamp(utcHex(DateTime(2026, 10, 4, 8))),
+      );
       await expectLater(
         repo.saveDeviceTimestamp(timestamp(utcHex(DateTime(2026, 10, 4, 9)))),
         throwsStateError,
@@ -170,7 +174,9 @@ void main() {
     () async {
       final repo = await open();
       addTearDown(repo.close);
-      await repo.saveDeviceTimestamp(timestamp(utcHex(DateTime(2026, 10, 4, 8, 15, 32))));
+      await repo.saveDeviceTimestamp(
+        timestamp(utcHex(DateTime(2026, 10, 4, 8, 15, 32))),
+      );
       final csv = CsvExportService.encode(
         await repo.readAll(),
         RecordSource.device,
@@ -332,7 +338,9 @@ void main() {
       var repo = await open(path);
       expect(await repo.readSyncCursor('C3-A'), 17);
       expect(await repo.lastSyncAt(), _now.toUtc());
-      await repo.saveDeviceTimestamp(timestamp(utcHex(DateTime(2026, 10, 4, 8))));
+      await repo.saveDeviceTimestamp(
+        timestamp(utcHex(DateTime(2026, 10, 4, 8))),
+      );
       await repo.close();
       repo = await open(path);
       expect(await repo.readAll(), hasLength(2));
@@ -388,9 +396,14 @@ void main() {
       expect(token, '12345678');
       transport.frame('BEGIN|$token|1');
       await until(() => transport.writes.contains('START|$token'));
-      transport.frame('R|$token|0|data_test_1.txt|${utcHex(DateTime(2026, 10, 4, 8))}');
+      transport.frame(
+        'R|$token|0|data_test_1.txt|${utcHex(DateTime(2026, 10, 4, 8))}',
+      );
       await until(() => transport.writes.contains('ACK|$token|0'));
-      expect((await repo.readAll()).single.localOccurredAt, DateTime(2026, 10, 4, 8).toLocal());
+      expect(
+        (await repo.readAll()).single.localOccurredAt,
+        DateTime(2026, 10, 4, 8).toLocal(),
+      );
       transport.frame('END|$token|1');
       await until(() => transport.writes.contains('COMMIT|$token'));
       expect(await repo.lastSyncAt(), isNull);

@@ -35,6 +35,10 @@ const _englishTopics = <String, String>{
   r'\b(source|where.*records.*come from|import)\b': '数据来源',
   r'\b(export|spreadsheet|share)\b': '导出',
   r'\b(attention|advice|suggestions?|recommendations?)\b': '注意',
+  // Must precede the generic invalid topic: "why are there invalid records?"
+  // asks for a cause, not for the current count.
+  r'\b(why|what causes|what caused|what is causing|reason\w* (for|behind)|explain)\b.*\b(invalid|unusual|abnormal|anomal\w*)\b':
+      '无效原因',
   r'\b(invalid|unusual|abnormal|anomal\w*)\b': '异常',
   r'\b(today)\b': '今天',
   r'\b(last 7 days|last week|week|weekly)\b': '一周',

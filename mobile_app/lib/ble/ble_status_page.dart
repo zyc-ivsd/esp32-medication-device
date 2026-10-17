@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../models/medication_record.dart';
+import '../models/record_filter.dart';
 import 'ble_service.dart';
 
 class BleConnectionCard extends StatelessWidget {
@@ -63,6 +65,15 @@ class _BleStatusPageState extends State<BleStatusPage> {
         ),
       ),
     );
+  }
+
+  /// Saved entries keep the device's raw hex for evidence, but the list shows
+  /// the local date and second-precision time. Malformed/placeholder values
+  /// fall back to the original text so they remain reviewable.
+  String _savedTimestampLabel(String rawText) {
+    final instant = parseDeviceTimestamp(rawText)?.toLocal();
+    if (instant == null) return rawText;
+    return '${dateLabel(instant)} ${timeLabelWithSeconds(instant)}';
   }
 
   @override
@@ -224,7 +235,7 @@ class _BleStatusPageState extends State<BleStatusPage> {
             for (final record in _service.savedRecords)
               Card(
                 child: ListTile(
-                  title: SelectableText(record.rawText),
+                  title: SelectableText(_savedTimestampLabel(record.rawText)),
                   subtitle: Text('${record.deviceId}\n${record.fileId}'),
                 ),
               ),

@@ -37,10 +37,16 @@ class RecordFilter {
   }
 }
 
+/// Device-facing date format: month-day-year, e.g. 10-17-2026.
 String dateLabel(DateTime date) =>
-    '${date.year}-${date.month.toString().padLeft(2, '0')}-'
-    '${date.day.toString().padLeft(2, '0')}';
+    '${date.month.toString().padLeft(2, '0')}-'
+    '${date.day.toString().padLeft(2, '0')}-${date.year}';
 
 String timeLabel(DateTime date) =>
     '${date.hour.toString().padLeft(2, '0')}:'
     '${date.minute.toString().padLeft(2, '0')}';
+
+/// Second-precision clock label, e.g. 08:30:45. Device records are stored as
+/// whole Unix seconds, so the seconds field is meaningful evidence.
+String timeLabelWithSeconds(DateTime date) =>
+    '${timeLabel(date)}:${date.second.toString().padLeft(2, '0')}';

@@ -92,6 +92,24 @@ class MedicationRecord {
       ? parseDeviceTimestamp(rawTimestampText!)?.toLocal()
       : occurredAt?.toLocal();
 
+  /// Returns a copy with a different event type. Device evidence (raw text,
+  /// identifiers and measurements) is preserved unchanged.
+  MedicationRecord copyWith({int? eventType}) => MedicationRecord(
+    deviceId: deviceId,
+    seq: seq,
+    timestamp: timestamp,
+    eventType: eventType ?? this.eventType,
+    durationMs: durationMs,
+    pressurePeakPa: pressurePeakPa,
+    confidence: confidence,
+    batteryMv: batteryMv,
+    protocolVersion: protocolVersion,
+    algorithmVersion: algorithmVersion,
+    deviceFileId: deviceFileId,
+    rawTimestampText: rawTimestampText,
+    receivedAt: receivedAt,
+  );
+
   bool get hasKnownTime => localOccurredAt != null;
   DateTime? get occurredAt => hasUnixTime
       ? DateTime.fromMillisecondsSinceEpoch(timestamp * 1000, isUtc: true)

@@ -15,6 +15,7 @@ One valid button-generated timestamp represents one medication-use diary entry. 
 - The device reports UTC Unix seconds as 16 hexadecimal digits. The phone converts each instant to local time for display.
 - `(device_id, file_id)` identifies an entry. Repeated transfers preserve the count; separate files recorded in the same second remain separate entries. Conflicting payloads under an existing identity are rejected.
 - The diary accepts timestamps in 2001–2099. Malformed, unknown, and future values remain inspectable but do not contribute to current daily counts.
+- Two records from the same device at most one second apart are treated as one press: the earlier record is marked as a suspected invalid use (visible in History and CSV, excluded from daily counts).
 - Original text is stored in `prototype_text.db`. Diary entries use the `timestamp_uses` table in `records_device.db` (schema version 2).
 - ACK follows the required durable writes. Replay and startup backfill maintain consistency between raw storage and diary entries. Last-sync time advances after DONE.
 - Firmware archives committed files in DA/DB groups. Pending files remain available for synchronization retry.

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../assistant/assistant_page.dart';
 import '../assistant/rules/observation_rules.dart';
 import '../database/record_repository.dart';
+import '../models/invalid_use_rule.dart';
 import '../models/medication_record.dart';
 import '../models/record_filter.dart';
 import '../models/record_summary.dart';
@@ -109,7 +110,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         builder: (_) => AssistantPage(
           assistantContext: initial.toAssistantContext(),
           contextLoader: () async => RecordSummary.calculate(
-            await repo.readAll(),
+            applySuspectedInvalidUseRule(await repo.readAll()),
             now: data.clock(),
             lastSyncAt: await repo.lastSyncAt(),
           ).toAssistantContext(),
@@ -393,7 +394,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       children: [
         Icon(Icons.calendar_today_outlined, size: size, color: color),
         Positioned(
-          top: size * 0.40 + 2 ,
+          top: size * 0.40 + 2,
           child: CustomPaint(
             size: Size(size * 0.30, size * 0.34),
             painter: _SevenDigitPainter(color),
@@ -507,6 +508,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
     ),
   );
+
   /// 本地「今天」的日历日（去时分秒）。
   DateTime _todayLocalDate() {
     final now = data.clock().toLocal();
@@ -567,7 +569,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     for (final record in data.records) {
       if (record.eventType != 2) continue;
       final time = record.localOccurredAt;
-      if (time == null) continue;
+      if (time == null || time.isAfter(now)) continue;
       final index = days.indexWhere(
         (d) =>
             d.year == time.year && d.month == time.month && d.day == time.day,
@@ -575,6 +577,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (index >= 0) counts[index]++;
     }
     return [for (var i = 0; i < 7; i++) DailyCount(days[i], counts[i])];
+  }
+
+  /// 近 7 天（含今天）逐日记录时间，口径与 [RecordSummary] 的逐日计数一致：
+  /// [invalid] 为 true 时取疑似无效记录，否则取有效用药记录；未知时间、
+  /// 未来时间和窗口外的记录都不进入柱子，也不进入点击后的时间列表。
+  List<List<DateTime>> _timesByDay({required bool invalid}) {
+    final now = data.clock().toLocal();
+    final today = DateTime(now.year, now.month, now.day);
+    final start = DateTime(today.year, today.month, today.day - 6);
+    final days = List.generate(
+      7,
+      (i) => DateTime(start.year, start.month, start.day + i),
+    );
+    final buckets = List.generate(7, (_) => <DateTime>[]);
+    for (final record in data.records) {
+      if (invalid ? record.eventType != 2 : record.eventType != 1) continue;
+      final time = record.localOccurredAt;
+      if (time == null || time.isAfter(now)) continue;
+      final index = days.indexWhere(
+        (day) =>
+            day.year == time.year &&
+            day.month == time.month &&
+            day.day == time.day,
+      );
+      if (index >= 0) buckets[index].add(time);
+    }
+    return buckets;
   }
 
   /// 卡片下方的文字说明（合并为单个 Text，换行分隔），展开前后均保留。
@@ -669,9 +698,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             Expanded(
               child: Text(
                 title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
             if (trailing != null)
@@ -694,7 +723,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Widget _todayDetailCard(List<MedicationRecord> uses, {bool compact = false}) {
-    final isToday = _selectedDay.year == _todayLocalDate().year &&
+    final isToday =
+        _selectedDay.year == _todayLocalDate().year &&
         _selectedDay.month == _todayLocalDate().month &&
         _selectedDay.day == _todayLocalDate().day;
     return Card(
@@ -741,14 +771,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               icon: Icons.calendar_month_outlined,
               title: 'Uses in 7 days',
               trailing: '${summary?.last7DaysCount ?? '—'} uses',
-              subtitle: 'Daily counts for the last 7 days',
+              subtitle:
+                  'Daily counts for the last 7 days · tap a bar to see times',
               iconBuilder: _calendarSevenIcon,
             ),
             const SizedBox(height: 12),
             if (compact)
-              Expanded(child: _dailyBarChart(days, compact: true))
+              Expanded(
+                child: _dailyBarChart(
+                  days,
+                  compact: true,
+                  timesByDay: _timesByDay(invalid: false),
+                ),
+              )
             else
-              _dailyBarChart(days),
+              _dailyBarChart(days, timesByDay: _timesByDay(invalid: false)),
           ],
         ),
       ),
@@ -768,13 +805,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               icon: Icons.info_outline,
               title: 'Invalid uses (7 days)',
               trailing: '${summary?.invalidEventCount ?? '—'} records',
-              subtitle: 'Daily counts for the last 7 days',
+              subtitle:
+                  'Daily counts for the last 7 days · tap a bar to see times',
             ),
             const SizedBox(height: 12),
             if (compact)
-              Expanded(child: _dailyBarChart(days, compact: true))
+              Expanded(
+                child: _dailyBarChart(
+                  days,
+                  compact: true,
+                  timesByDay: _timesByDay(invalid: true),
+                  timeSheetLabel: 'invalid uses',
+                ),
+              )
             else
-              _dailyBarChart(days),
+              _dailyBarChart(
+                days,
+                timesByDay: _timesByDay(invalid: true),
+                timeSheetLabel: 'invalid uses',
+              ),
           ],
         ),
       ),
@@ -782,13 +831,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Widget _allRecordsDetailCard(RecordSummary? summary, {bool compact = false}) {
-    final times = <DateTime>[];
-    for (final record in data.records) {
-      final time = record.localOccurredAt;
-      if (time != null) times.add(time);
-    }
-    times.sort((a, b) => b.compareTo(a));
-    final recent = times.take(100).toList(growable: false);
+    final recent = data.records
+        .where((record) => record.localOccurredAt != null)
+        .toList(growable: false);
+    recent.sort((a, b) => b.localOccurredAt!.compareTo(a.localOccurredAt!));
+    final visible = recent.take(100).toList(growable: false);
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -803,16 +850,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 12),
             if (compact)
-              Expanded(child: _recordsList(recent, compact: true))
+              Expanded(child: _recordsList(visible, compact: true))
             else
-              _recordsList(recent, compact: false),
+              _recordsList(visible, compact: false),
           ],
         ),
       ),
     );
   }
 
-  Widget _recordsList(List<DateTime> recent, {required bool compact}) {
+  Widget _recordsList(List<MedicationRecord> recent, {required bool compact}) {
     if (recent.isEmpty) {
       return const Center(child: Text('No records with a known time'));
     }
@@ -820,9 +867,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final list = ListView.separated(
       itemCount: recent.length,
       separatorBuilder: (_, index) {
-        final isNewDay = recent[index].year != recent[index + 1].year ||
-            recent[index].month != recent[index + 1].month ||
-            recent[index].day != recent[index + 1].day;
+        final isNewDay =
+            recent[index].localOccurredAt!.year !=
+                recent[index + 1].localOccurredAt!.year ||
+            recent[index].localOccurredAt!.month !=
+                recent[index + 1].localOccurredAt!.month ||
+            recent[index].localOccurredAt!.day !=
+                recent[index + 1].localOccurredAt!.day;
         if (isNewDay) {
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -836,12 +887,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return Divider(height: 1, thickness: 1, color: scheme.outlineVariant);
       },
       itemBuilder: (context, index) {
-        final time = recent[index];
+        final record = recent[index];
+        final time = record.localOccurredAt!;
+        final invalid = record.eventType == 2;
+        final body = Theme.of(context).textTheme.bodyMedium;
+        final subtle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          // Two steps smaller than the timestamp, as a lightweight hint.
+          fontSize: (body?.fontSize ?? 14) - 2,
+          color: scheme.outline,
+        );
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(
-            '${dateLabel(time)} ${timeLabel(time)}',
-            style: Theme.of(context).textTheme.bodyMedium,
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  '${dateLabel(time)} ${timeLabel(time)}',
+                  style: body?.copyWith(color: invalid ? scheme.outline : null),
+                ),
+              ),
+              if (invalid) ...[
+                const SizedBox(width: 6),
+                Text('(invalid)', style: subtle),
+              ],
+            ],
           ),
         );
       },
@@ -871,7 +940,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _barColumn(int index, List<DateTime> times, int max, {bool compact = false}) {
+  Widget _barColumn(
+    int index,
+    List<DateTime> times,
+    int max, {
+    bool compact = false,
+  }) {
     final count = times.length;
     final scheme = Theme.of(context).colorScheme;
     return Semantics(
@@ -886,20 +960,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             children: [
               Text(
                 '$count',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: scheme.onSurfaceVariant,
-                ),
+                style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 4),
               _barArea(count, max, compact, 14),
               const SizedBox(height: 6),
               Text(
                 '$index',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: scheme.onSurfaceVariant,
-                ),
+                style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -924,9 +992,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         width: barWidth,
         height: count == 0 ? 3.0 : math.max(minBarHeight, count / max * area),
         decoration: BoxDecoration(
-          color: count == 0
-              ? scheme.surfaceContainerHighest
-              : scheme.primary,
+          color: count == 0 ? scheme.surfaceContainerHighest : scheme.primary,
           borderRadius: BorderRadius.circular(4),
         ),
       ),
@@ -972,31 +1038,81 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   /// 按日柱状图：每根柱代表一天，柱顶次数、柱底月/日。
-  Widget _dailyBarChart(List<DailyCount> days, {bool compact = false}) {
+  /// [timesByDay] 与 [days] 一一对应；有数据时点击柱子可查看当天具体时间。
+  Widget _dailyBarChart(
+    List<DailyCount> days, {
+    bool compact = false,
+    List<List<DateTime>>? timesByDay,
+    String timeSheetLabel = 'medication uses',
+  }) {
     final max = days.fold<int>(1, (m, d) => math.max(m, d.count));
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        for (final day in days)
+        for (var i = 0; i < days.length; i++)
           Expanded(
             child: Semantics(
-              label: '${dateLabel(day.day)}, ${day.count} medication uses',
+              label:
+                  '${dateLabel(days[i].day)}, ${days[i].count} $timeSheetLabel',
+              button: days[i].count > 0 && timesByDay != null,
               excludeSemantics: true,
-              child: Column(
-                children: [
-                  Text('${day.count}'),
-                  const SizedBox(height: 6),
-                  _barArea(day.count, max, compact, 18, minBarHeight: 3),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${day.day.month}/${day.day.day}',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                ],
+              child: InkWell(
+                key: ValueKey('daily-bar-$i'),
+                onTap: days[i].count == 0 || timesByDay == null
+                    ? null
+                    : () => _showDayTimes(
+                        days[i].day,
+                        timesByDay[i],
+                        timeSheetLabel,
+                      ),
+                borderRadius: BorderRadius.circular(4),
+                child: Column(
+                  children: [
+                    Text('${days[i].count}'),
+                    const SizedBox(height: 6),
+                    _barArea(days[i].count, max, compact, 18, minBarHeight: 3),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${days[i].day.month}/${days[i].day.day}',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
       ],
+    );
+  }
+
+  /// 点击某一天的柱子后，按时间顺序列出当天的具体记录时间。
+  void _showDayTimes(DateTime day, List<DateTime> times, String label) {
+    final sorted = List<DateTime>.of(times)..sort();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          children: [
+            Text(
+              '${dateLabel(day)} · ${sorted.length} $label',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            if (sorted.isEmpty)
+              const Text('No records on this day')
+            else
+              for (final time in sorted)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.schedule),
+                  title: Text(timeLabelWithSeconds(time)),
+                ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1066,8 +1182,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }) {
     final scheme = Theme.of(context).colorScheme;
     final color = scheme.primary;
-    final background =
-        active ? scheme.tertiaryContainer : scheme.surfaceContainerHighest;
+    final background = active
+        ? scheme.tertiaryContainer
+        : scheme.surfaceContainerHighest;
     return Tooltip(
       message: tooltip,
       child: SizedBox(
@@ -1080,7 +1197,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           child: InkWell(
             onTap: onTap,
             child: Center(
-              child: iconBuilder?.call(24, color) ??
+              child:
+                  iconBuilder?.call(24, color) ??
                   Icon(icon, size: 24, color: color),
             ),
           ),
@@ -1090,7 +1208,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Widget _deviceConnection(RecordSummary? summary) {
-    final built = widget.connectionBuilder?.call(context, data.deviceRepository);
+    final built = widget.connectionBuilder?.call(
+      context,
+      data.deviceRepository,
+    );
     if (built != null) return built;
     return Card(
       child: Padding(
@@ -1387,7 +1508,7 @@ class _SevenDigitPainter extends CustomPainter {
     final path = Path()
       ..moveTo(half, half)
       ..lineTo(w - half, half)
-      ..quadraticBezierTo(w * 0.5, h * 0.52, w * 0.30, h - half);
+      ..quadraticBezierTo(w * 0.5, h * 0.50, w * 0.30, h - half);
     canvas.drawPath(path, paint);
   }
 

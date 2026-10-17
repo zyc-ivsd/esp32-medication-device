@@ -98,6 +98,25 @@ class MockAssistantProvider implements AssistantProvider {
       return _connectionAnswer;
     }
 
+    // "Why are there invalid records?" asks for the cause, not the count.
+    // Keep this before the invalid-count branch, which would otherwise answer
+    // with a number. Both word order and several phrasings are covered
+    // ("invalid records why", "how are they produced", "what does invalid mean").
+    final rawQuestion = question.toLowerCase();
+    final asksAboutInvalid = RegExp(
+      r'invalid|unusual|abnormal|anomal|无效|异常',
+    ).hasMatch(rawQuestion);
+    final asksForCause = RegExp(
+      r'\bwhy\b|\bcause[sd]?\b|\breason\b|\bexplain\b|\bwhat (is|are|does)\b|'
+      r'\bmean(s|ing)?\b|\bhow (do|does|are|did)\b|\borigin\b|'
+      r'为什么|为啥|原因|怎么|如何|怎么回事|产生|来自',
+    ).hasMatch(rawQuestion);
+    if (normalizedQuestion.contains('无效原因') ||
+        (asksAboutInvalid && asksForCause)) {
+      return 'Invalid records are usually caused by no operation or poor switch contact, '
+          'which produces records with times too close together.';
+    }
+
     if (normalizedQuestion.contains('今天') ||
         normalizedQuestion.contains('次数')) {
       return 'Your $sourceText show ${context.todayCount} uses today and '
