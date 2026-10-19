@@ -20,7 +20,6 @@ volatile bool deviceConnected = false;
 volatile bool notifySubscribed = false;
 volatile uint16_t activeConnectionHandle = BLE_HS_CONN_HANDLE_NONE;
 #endif
-volatile bool keyPressed = false;
 volatile uint32_t connectionGeneration = 0;
 volatile bool advertisePending = false;
 struct ControlCommand { char text[21]; uint32_t generation; };

@@ -13,19 +13,17 @@ bool configureLightSleepWakeup() {
   if (error != ESP_OK) LOG("SLEEP_WAKE_CONFIG_FAILED: %d\n", error);
   return error == ESP_OK;
 }
-bool enterLightSleep() {
+void prepareLightSleep() {
   if (clockValid && !saveTimeToNVS()) LOGLN("CLOCK_SNAPSHOT_FAILED: RTC remains active in light sleep");
   LOGLN("LIGHT_SLEEP: press GPIO4 button to wake, then reconnect in app");
   logFlush();
-  const esp_err_t error = esp_light_sleep_start();
-  if (error != ESP_OK) {
-    LOG("LIGHT_SLEEP_FAILED: %d; returning to advertising\n", error);
-    return false;
-  }
-  // Log the actual cause so a failed wake is diagnosable instead of silent.
-  const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-  LOG("WAKE_CAUSE: %d\n", static_cast<int>(cause));
-  // Any cause other than UNDEFINED means we really woke from sleep. UNDEFINED
-  // only happens on a cold boot, which cannot occur here because we just slept.
-  return cause != ESP_SLEEP_WAKEUP_UNDEFINED;
+}
+esp_err_t lastSleepError = ESP_OK;
+esp_sleep_wakeup_cause_t lastSleepWakeCause = ESP_SLEEP_WAKEUP_UNDEFINED;
+bool enterLightSleep(int64_t &wokeAtUs) {
+  lastSleepError = esp_light_sleep_start();
+  wokeAtUs = esp_timer_get_time();
+  lastSleepWakeCause = lastSleepError == ESP_OK ? esp_sleep_get_wakeup_cause() : ESP_SLEEP_WAKEUP_UNDEFINED;
+  // Do not create a phantom button record for another wake source or failure.
+  return lastSleepWakeCause == ESP_SLEEP_WAKEUP_GPIO;
 }

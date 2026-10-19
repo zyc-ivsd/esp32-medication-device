@@ -14,7 +14,6 @@
 // that group already holds a full set it is deleted first, so the device keeps
 // at most two archive generations and never grows without bound. Never format
 // on send or mount failure.
-const size_t MAX_SYNC_FILES = 256;
 const uint32_t ACK_TIMEOUT_MS = 1500;
 const uint8_t MAX_RETRIES = 3;
 // Files are transferred in rounds of at most this many. The wire protocol is
@@ -120,14 +119,13 @@ void syncError(const String &reason) {
   waitingCommit = false;
   LOGLN("SYNC_ERROR " + reason + ": files retained");
 }
-bool writeFile() {
+bool writeFile(uint64_t utc) {
   if (!storageReady || !counterReady) return false;
   // The device stores UTC only. The file CONTENT holds the full 16-hex-digit
   // Unix seconds (the authoritative value the phone parses). The file NAME only
   // carries the last four hex digits plus the counter, because SPIFFS caps
   // object names at 31 bytes and the full stamp would leave room for barely
   // 10k files. The short stamp is for human readability; the content is truth.
-  const uint64_t utc = static_cast<uint64_t>(time(nullptr));
   char hex[24];
   snprintf(hex, sizeof(hex), "%016llx", static_cast<unsigned long long>(utc));
   uint32_t counter = fileCounter.getUInt("next", 0);
@@ -152,7 +150,13 @@ bool writeFile() {
   const size_t written = file.print(line);
   file.flush();
   file.close();
-  if (written != line.length()) { LOGLN("WRITE_INCOMPLETE " + fileName); return false; }
+  if (written != line.length()) {
+    // The RAM event is retried; do not leave a partial data_ file that would
+    // make a later transfer stop permanently on BAD_FILE.
+    if (!SPIFFS.remove(fileName)) LOGLN("WRITE_CLEANUP_FAILED " + fileName);
+    LOGLN("WRITE_INCOMPLETE " + fileName);
+    return false;
+  }
   if (clockValid && !saveTimeToNVS()) LOGLN("CLOCK_SNAPSHOT_FAILED: file is still retained");
   if (!clockSynced) LOGLN("RECORD_TIME_UNCALIBRATED: raw text only");
   LOGLN("CREATED " + fileName);
@@ -297,7 +301,10 @@ size_t archiveTransferredFiles() {
     if (step.switched) {
       // The two-slot scheme keeps only the newest two generations; the incoming
       // group is wiped before reuse even if never synced. The team accepted it.
-      clearArchiveGroup(step.cursor.group);
+      if (!clearArchiveGroup(step.cursor.group)) {
+        LOGLN("ARCHIVE_SWITCH_ABORTED: active records retained");
+        break;
+      }
     }
     if (!archiveTransferredFile(name, step.cursor.seq)) {
       // Leave the file in data_ so a later round can retry it.
@@ -343,11 +350,13 @@ bool validToken(const String &token) {
 }
 
 // Scans SPIFFS for transferable `data_*` files only. `DA_*`/`DB_*` archives are
-// deliberately skipped so a transferred round is never offered again. Returns
-// false and fills `reason` on a storage error or the 256-file prototype
-// ceiling. On success `files` is sorted so index order is deterministic.
-bool collectFiles(std::vector<String> &files, const char *&reason) {
+// deliberately skipped. Keep only the first round in memory, even when a large
+// offline backlog exists; subsequent committed rounds discover the remainder.
+bool collectFiles(std::vector<String> &files, const char *&reason, size_t *total = nullptr) {
   files.clear();
+  files.reserve(ROUND_SIZE + 1);
+  size_t count = 0;
+  if (total) *total = 0;
   reason = nullptr;
   if (!storageReady) { reason = "STORAGE_UNAVAILABLE"; return false; }
   File root = SPIFFS.open("/");
@@ -360,16 +369,19 @@ bool collectFiles(std::vector<String> &files, const char *&reason) {
     // committed round is never offered a second time.
     if (!file.isDirectory() && !isArchiveName(name) &&
         name.startsWith("data_") && name.endsWith(".txt")) {
-      files.push_back(name);
-      if (files.size() > MAX_SYNC_FILES) {
-        file.close(); root.close(); reason = "TOO_MANY_FILES"; return false;
+      ++count;
+      auto position = std::lower_bound(files.begin(), files.end(), name,
+        [](const String &a, const String &b) { return a.compareTo(b) < 0; });
+      if (files.size() < ROUND_SIZE || position != files.end()) {
+        files.insert(position, name);
+        if (files.size() > ROUND_SIZE) files.pop_back();
       }
     }
     file.close();
     file = root.openNextFile();
   }
   root.close();
-  std::sort(files.begin(), files.end(), [](const String &a, const String &b) { return a.compareTo(b) < 0; });
+  if (total) *total = count;
   return true;
 }
 
@@ -391,8 +403,9 @@ String generateToken() {
 // after this round's DONE, so the wire protocol itself never changes.
 bool sendSyncRequest() {
   std::vector<String> files;
+  size_t total = 0;
   const char *reason = nullptr;
-  if (!collectFiles(files, reason)) {
+  if (!collectFiles(files, reason, &total)) {
     // Storage is not usable. Report it once and keep the request pending so a
     // later button press or reconnect can retry after the fault is cleared.
     pendingSyncRequest = false;
@@ -415,7 +428,7 @@ bool sendSyncRequest() {
   lastRequestAt = millis();
   LOG("REQ_SENT %s count=%u total=%u\n", syncRequestToken.c_str(),
                 static_cast<unsigned>(syncRequestCount),
-                static_cast<unsigned>(files.size()));
+                 static_cast<unsigned>(total));
   return true;
 }
 
@@ -532,7 +545,10 @@ void serviceSync() {
     resetSync();
   }
   ControlCommand command;
-  while (xQueueReceive(commandQueue, &command, 0) == pdTRUE) {
+  // Bound work per iteration so a continuously refilled queue cannot starve
+  // button-record persistence or the sleep/restart state machine.
+  for (uint8_t handled = 0; handled < 4 &&
+       xQueueReceive(commandQueue, &command, 0) == pdTRUE; ++handled) {
     if (deviceConnected && command.generation == connectionGeneration)
       handleCommand(String(command.text));
   }
