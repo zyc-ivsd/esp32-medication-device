@@ -63,3 +63,37 @@ For UI renders, set `PARCEL_PREVIEW_OUTPUT` to an output folder and `PARCEL_PREV
 The application ID is `org.igem.medication.medication_device_app`. In-place updates require the same application ID and signing certificate. Uninstalling removes local app data.
 
 The build configuration uses the Android debug key for internal release APKs. Distribution builds require a team-managed signing key and a consistent update-signing process.
+
+## Third-Party Notices
+
+Material Icons
+--------------
+This software includes icon artwork from Material Icons, an open-source icon
+set provided by Google LLC.
+
+  Source:  https://github.com/google/material-design-icons
+  License: Apache License, Version 2.0
+           https://www.apache.org/licenses/LICENSE-2.0
+
+The following icons are used (Outlined style, 24x24, source paths relative to
+the repository above):
+
+  Uses today              src/action/today/materialiconsoutlined/24px.svg
+  Uses in 7 days          src/action/calendar_month/materialiconsoutlined/24px.svg
+  Choose date             src/action/calendar_today/materialiconsoutlined/24px.svg
+  Invalid uses            src/action/info/materialiconsoutlined/24px.svg
+  All saved records       src/device/storage/materialiconsoutlined/24px.svg
+  Time list bullet        src/action/schedule/materialiconsoutlined/24px.svg
+
+Modifications
+-------------
+The "Uses in 7 days" icon is the unmodified calendar_month_outlined path with a
+digits "7" overlay that was drawn specifically for this project. The digit is not
+part of Material Icons and carries no third-party license obligations. All other
+icons are embedded verbatim, with only the fill/stroke colour left to CSS
+(currentColor).
+
+Apache License 2.0 requires that this notice be retained in redistributions of
+the software in source or object form. If this project is distributed under a
+different license, the icons above remain under Apache License 2.0, and this
+notice must be kept in the accompanying documentation or NOTICE file.
